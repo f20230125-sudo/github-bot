@@ -177,6 +177,9 @@ npx tsc --noEmit
 npm run build
 ```
 
+CI runs the backend tests and ruff on Windows, and the frontend lint and build on Linux, for every push to
+`main` and every pull request.
+
 The backend tests never call GitHub or Claude. They use a stand-in GitHub that honours conditional
 requests and counts every call, and a stand-in for the Claude Code program.
 
