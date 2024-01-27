@@ -18,6 +18,8 @@ import type {
   Setup,
 } from "./types";
 
+import { SHOWCASE, showcaseGet } from "./showcase";
+
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8010").replace(/\/$/, "");
 
 export type Health = {
@@ -38,6 +40,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (SHOWCASE) {
+    // The view-only build has no backend. Reads come from the snapshot, and nothing can be changed.
+    if (init?.method && init.method !== "GET") {
+      throw new ApiError(403, "This is a view-only copy. Nothing can be changed here.");
+    }
+    const answer = await showcaseGet(path);
+    if (answer === undefined) throw new ApiError(404, "That isn't part of this snapshot.");
+    return answer as T;
+  }
+
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, init);

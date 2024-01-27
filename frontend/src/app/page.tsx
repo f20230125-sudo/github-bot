@@ -1,6 +1,6 @@
 "use client";
 
-import { Play } from "lucide-react";
+import { Play, RotateCcw, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
@@ -55,7 +55,7 @@ function PitchTray({ handoffs }: { handoffs: Handoff[] }) {
 }
 
 export default function FloorPage() {
-  const { events, status, desk } = useStream();
+  const { events, status, desk, replay } = useStream();
   const [demoBusy, setDemoBusy] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
@@ -116,6 +116,13 @@ export default function FloorPage() {
           )}
           <AuditButton />
           <DraftButton />
+          {replay && (
+            // The view-only copy plays a recording in place of the live feed.
+            <Button onClick={replay.playing ? replay.finish : replay.restart}>
+              {replay.playing ? <SkipForward size={14} aria-hidden /> : <RotateCcw size={14} aria-hidden />}
+              {replay.playing ? "Skip to the end" : "Replay"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -189,6 +196,8 @@ export default function FloorPage() {
 
           {feed.length ? (
             <Feed items={feed} />
+          ) : replay ? (
+            <p className="panel p-8 text-sm text-muted">The recording is starting.</p>
           ) : (
             <div className="panel flex flex-col items-start gap-4 p-8">
               <h2 className="font-display text-xl font-semibold tracking-tight">Nothing has happened yet.</h2>
@@ -201,13 +210,15 @@ export default function FloorPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={onPlayDemo} disabled={demoBusy || status !== "live"}>
-              <Play size={14} aria-hidden />
-              {demoBusy ? "Starting" : "Play the recorded demo"}
-            </Button>
-            {demoError && <InlineError>{demoError}</InlineError>}
-          </div>
+          {!replay && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={onPlayDemo} disabled={demoBusy || status !== "live"}>
+                <Play size={14} aria-hidden />
+                {demoBusy ? "Starting" : "Play the recorded demo"}
+              </Button>
+              {demoError && <InlineError>{demoError}</InlineError>}
+            </div>
+          )}
         </section>
 
         {/* Below the feed until the screen is wide enough for a third column. */}
