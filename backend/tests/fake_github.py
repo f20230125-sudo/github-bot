@@ -98,6 +98,8 @@ class FakeGitHub:
         self.calls: list[Call] = []
         self.rate_limited = False
         self.graphql_broken = False
+        # The token belongs to a GitHub Actions job: valid, but not allowed to list "your" repositories.
+        self.job_token = False
         # Writing: what the token may do, and everything that was written.
         self.permissions = {"contents", "pull_requests", "administration"}
         self.merge_blocked = False
@@ -145,6 +147,10 @@ class FakeGitHub:
         if path == "/user":
             return self._json(request, {"login": self.user}) if authed else httpx.Response(401, json={"message": "Requires authentication"})
         if path == "/user/repos" and authed:
+            if self.job_token:
+                return httpx.Response(
+                    403, json={"message": "Resource not accessible by integration"}, headers={"x-ratelimit-remaining": "990"}
+                )
             return self._json(request, [self._listing(r) for r in self._sorted()])
         if path == f"/users/{self.user}/repos":
             return self._json(request, [self._listing(r) for r in self._sorted() if not r.private])
