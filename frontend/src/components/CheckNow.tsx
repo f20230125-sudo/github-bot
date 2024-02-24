@@ -1,8 +1,10 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ago } from "@/lib/format";
 import { CHECKED_EVENT, checkStatus, snapshotChanged, startCheck, WORKFLOW_URL, type CheckStatus } from "@/lib/showcase";
+import { useNow } from "@/lib/useNow";
 import { Button, InlineError } from "./ui";
 
 const POLL_MS = 4000;
@@ -16,6 +18,37 @@ type Outcome =
   | { kind: "error"; text: string; url?: string | null };
 
 /**
+ * Left for the page that loads next, when a check found something and this page reloads to show
+ * it: the time the check finished.
+ */
+const FOUND_KEY = "desk-check-found";
+
+function leaveFound(): void {
+  try {
+    sessionStorage.setItem(FOUND_KEY, new Date().toISOString());
+  } catch {
+    /* the page still reloads and shows the change: only the note beside the button is lost */
+  }
+}
+
+let loadedBy: string | null | undefined;
+
+/** When the check that loaded this page finished, or null if no check did. Good for one load. */
+function checkThatLoadedThis(): string | null {
+  if (loadedBy === undefined) {
+    try {
+      loadedBy = sessionStorage.getItem(FOUND_KEY);
+      sessionStorage.removeItem(FOUND_KEY);
+    } catch {
+      loadedBy = null;
+    }
+  }
+  return loadedBy;
+}
+
+const never = () => () => undefined;
+
+/**
  * Starts Patch's check from the site, on the view-only build. The site's own server asks GitHub
  * to run the scheduled job now. This page then waits for it and shows what it found.
  *
@@ -24,8 +57,12 @@ type Outcome =
  */
 export function CheckNow() {
   const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  // undefined until the button is pressed on this page.
+  const [result, setOutcome] = useState<Outcome | null | undefined>(undefined);
   const mounted = useRef(true);
+  // null on the server and until the page is live, so the HTML sent matches the first render.
+  const loadedByCheck = useSyncExternalStore(never, checkThatLoadedThis, () => null);
+  const now = useNow();
 
   useEffect(() => {
     mounted.current = true;
@@ -33,6 +70,13 @@ export function CheckNow() {
       mounted.current = false;
     };
   }, []);
+
+  // A check that found something reloaded the page. Until the button is pressed again, say so
+  // beside the replay of it.
+  const outcome: Outcome | null =
+    result === undefined && loadedByCheck && now !== null
+      ? { kind: "note", text: `Checked ${ago(loadedByCheck, now)}. This is what it found.` }
+      : (result ?? null);
 
   /** Wait until a run that started after `since` has finished. Returns it, or null on giving up. */
   async function finished(since: string): Promise<CheckStatus | null> {
@@ -48,6 +92,7 @@ export function CheckNow() {
   }
 
   async function onClick() {
+    let leaving = false;
     setBusy(true);
     setOutcome(null);
     try {
@@ -81,12 +126,14 @@ export function CheckNow() {
         return;
       }
       if (await snapshotChanged(String(run.run_id ?? Date.now()))) {
+        leaveFound();
+        leaving = true; // the button keeps saying "Checking" until the new page takes over
         window.location.reload(); // something changed: load it, and replay the check that found it
         return;
       }
       setOutcome({ kind: "note", text: "Checked just now. Nothing had changed." });
     } finally {
-      if (mounted.current) setBusy(false);
+      if (mounted.current && !leaving) setBusy(false);
     }
   }
 
