@@ -22,6 +22,8 @@ GRAPHQL_CHUNK = 10
 GRAPHQL_TREE_DEPTH = 4
 # How long after a push a CI run that hasn't finished is still worth re-checking.
 PENDING_WINDOW = timedelta(hours=2)
+# How many commits back to look for one that CI ran on.
+CI_LOOKBACK = 10
 
 
 # -- the repository list ----------------------------------------------------------------------
@@ -247,7 +249,10 @@ fragment RepoFields on Repository {{
   isEmpty
   latestRelease {{ tagName publishedAt }}
   defaultBranchRef {{
-    target {{ ... on Commit {{ oid tree {{ oid }} statusCheckRollup {{ state }} }} }}
+    target {{ ... on Commit {{
+      oid tree {{ oid }}
+      history(first: {CI_LOOKBACK}) {{ nodes {{ statusCheckRollup {{ state }} }} }}
+    }} }}
   }}
   root: object(expression: "HEAD:") {{ ... on Tree {{ {_tree_selection(depth)} }} }}
 {readmes}
@@ -262,6 +267,20 @@ def _flatten(entries: list[dict[str, Any]] | None, prefix: str, files: list[str]
             _flatten((entry.get("object") or {}).get("entries"), path + "/", files, dirs)
         elif entry.get("type") == "blob":
             files.append(path)
+
+
+def _ci_from_history(target: Mapping[str, Any]) -> CiState | None:
+    """The CI result of the newest commit that has one.
+
+    A push made by a workflow starts no workflow: a refreshed data file, a version bump. That
+    commit has no result of its own. Reading only the newest commit would lose a passing result
+    just behind it, and hide a failing one.
+    """
+    for commit in (target.get("history") or {}).get("nodes") or []:
+        state = ((commit or {}).get("statusCheckRollup") or {}).get("state")
+        if state:
+            return _ROLLUP_STATES.get(state)
+    return None
 
 
 def details_from_graphql(node: Mapping[str, Any], depth: int = GRAPHQL_TREE_DEPTH) -> RepoDetails:
@@ -280,7 +299,6 @@ def details_from_graphql(node: Mapping[str, Any], depth: int = GRAPHQL_TREE_DEPT
         if name == readme_path:
             readme_text = (node.get(alias) or {}).get("text")
 
-    rollup = (target.get("statusCheckRollup") or {}).get("state")
     release = node.get("latestRelease") or {}
     return RepoDetails(
         head_sha=target.get("oid"),
@@ -290,7 +308,7 @@ def details_from_graphql(node: Mapping[str, Any], depth: int = GRAPHQL_TREE_DEPT
         tree_depth=depth,
         readme_path=readme_path,
         readme_text=readme_text,
-        ci_state=_ROLLUP_STATES.get(rollup or ""),
+        ci_state=_ci_from_history(target),
         latest_release=release.get("tagName"),
         released_at=release.get("publishedAt"),
     )
