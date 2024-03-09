@@ -58,7 +58,7 @@ export function AgentCard({ name, role, color, status, text, mood, reserved, wat
   return (
     <section className={`panel p-5 ${reserved ? "opacity-70" : ""}`} aria-label={name}>
       <div className="flex items-center gap-4">
-        <Face mood={reserved ? "focused" : mood} color={reserved ? "var(--fg-faint)" : color} />
+        <Face mood={reserved ? "normal" : mood} color={reserved ? "var(--fg-faint)" : color} />
         <div className="min-w-0">
           <h2 className="font-display text-xl font-semibold tracking-tight">{name}</h2>
           <p className="eyebrow mt-0.5">{role}</p>

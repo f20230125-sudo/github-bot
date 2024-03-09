@@ -65,7 +65,7 @@ async def test_agents_lists_patch_and_the_empty_seat(client, app):
 
     assert body["paused"] is False and body["current"] is None
     assert (patch["id"], patch["name"], patch["role"], patch["hired"]) == ("patch", "Patch", "GitHub maintainer", True)
-    assert patch["status"] is None and patch["mood"] == "focused"
+    assert patch["status"] is None and patch["mood"] == "normal"  # nothing audited yet
     # No token, so checks are half an hour apart. The clock only runs when the server does.
     assert patch["watch"] == {"enabled": True, "interval": 1800.0, "next_at": None, "last": None}
     assert pitch == {"id": "pitch", "name": "Pitch", "role": "LinkedIn writer", "hired": False}
