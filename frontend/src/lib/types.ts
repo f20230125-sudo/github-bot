@@ -233,6 +233,24 @@ export type ChatMessage = {
   note: string | null;
 };
 
+/** One thing a post may state, with an address when there is something to open. */
+export type BriefFact = { label: string; value: string; url: string | null };
+
+/** Pitch's reading of a note as things stand now: is there enough for a post, and what may it state? */
+export type Brief = {
+  ready: boolean;
+  angle: string;
+  angle_label: string;
+  /** "Enough for a post." or "Not yet.", in Pitch's words. */
+  verdict: string;
+  facts: BriefFact[];
+  /** Why the post has to wait. Empty when there is enough. */
+  missing: string[];
+  /** What would make the post better, without holding it back. */
+  wanted: string[];
+};
+
+/** A note Patch left for Pitch about something worth a post. */
 export type Handoff = {
   id: number;
   ts: string;
@@ -242,6 +260,8 @@ export type Handoff = {
   topic: string;
   text: string;
   data: Record<string, unknown>;
+  /** Missing in a snapshot taken before Pitch joined the desk. */
+  brief?: Brief | null;
 };
 
 /** One day's totals across everything the desk did. */
@@ -306,22 +326,34 @@ export type Lesson = {
   created_at: string;
 };
 
+/** An agent's personality, as written in its persona.toml. */
+export type Voice = {
+  summary: string;
+  rules: string[];
+  opinions: string[];
+  quirks: string[];
+  banned: string[];
+  max_chars: number;
+  max_sentences: number;
+};
+
 export type AgentSheet = AgentInfo & {
   paused: boolean;
-  persona: {
-    summary: string;
-    rules: string[];
-    opinions: string[];
-    quirks: string[];
-    banned: string[];
-    max_chars: number;
-    max_sentences: number;
-  };
+  persona: Voice;
   moods: Record<string, string>;
   writes: string[];
   never: string[];
   lessons: Lesson[];
   lesson_limit: number;
+};
+
+export type PitchSheet = AgentInfo & {
+  paused: boolean;
+  persona: Voice;
+  moods: Record<string, string>;
+  /** What Pitch does today, and what it has no way to do. */
+  does: string[];
+  never: string[];
 };
 
 export function str(payload: Record<string, unknown>, key: string): string | undefined {

@@ -1,10 +1,10 @@
-"""Patch's mood. Computed from how healthy the repositories are, never random and never from a model."""
+"""An agent's mood. Computed from how healthy the repositories are, never random and never from a model."""
 
 from __future__ import annotations
 
 HAPPY_FROM = 80
 SAD_BELOW = 60
-# Each mood and what causes it. Shown on Patch's page, and worn on its face.
+# Each mood and what causes it. Shown on the agent's page, and worn on its face.
 MOODS = {
     "happy": f"The portfolio score is {HAPPY_FROM} or more.",
     "normal": f"The portfolio score is from {SAD_BELOW} to {HAPPY_FROM - 1}, or nothing has been audited yet.",
