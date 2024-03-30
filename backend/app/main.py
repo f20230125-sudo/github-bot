@@ -13,6 +13,7 @@ from .agents.github.agent import PatchAgent
 from .agents.linkedin.agent import PitchAgent
 from .api.desk import router as desk_router
 from .api.insight import router as insight_router
+from .api.pitch import router as pitch_router
 from .api.proposals import router as proposals_router
 from .api.ratelimit import SlidingWindowLimiter
 from .api.repos import router as repos_router
@@ -82,7 +83,7 @@ def create_app(
     app.state.patch = patch
     app.state.proposals = patch.proposals
     # Pitch learns about the repositories by asking Patch, never by going to GitHub itself.
-    pitch = PitchAgent(app.state.db, app.state.bus, source=patch)
+    pitch = PitchAgent(settings, app.state.db, app.state.bus, app.state.claude, source=patch)
     app.state.pitch = pitch
     app.state.agents = AgentRegistry()
     app.state.agents.register(patch)
@@ -122,6 +123,7 @@ def create_app(
     app.include_router(proposals_router)
     app.include_router(desk_router)
     app.include_router(insight_router)
+    app.include_router(pitch_router)
     return app
 
 

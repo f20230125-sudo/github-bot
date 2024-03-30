@@ -16,6 +16,10 @@ _EMOJI_RE = re.compile("[\U0001f000-\U0001faff☀-➿\U0001f1e6-\U0001f1ff]")
 _SENTENCE_END_RE = re.compile(r"[.!?]+(?=\s|$)")
 
 
+def has_emoji(text: str) -> bool:
+    return bool(_EMOJI_RE.search(text))
+
+
 class Persona:
     def __init__(self, data: dict[str, Any]):
         self.id: str = data["id"]
@@ -62,15 +66,19 @@ class Persona:
             problems.append(f"longer than {max_chars} characters")
         if "!" in text:
             problems.append("exclamation mark")
-        if _EMOJI_RE.search(text):
+        if has_emoji(text):
             problems.append("emoji")
-        lowered = text.lower()
-        for word in self.voice.get("banned", []):
-            if re.search(rf"\b{re.escape(word.lower())}\b", lowered):
-                problems.append(f"banned word: {word}")
+        problems += [f"banned word: {word}" for word in self.banned_in(text)]
         if len(_SENTENCE_END_RE.findall(text)) > max_sentences:
             problems.append(f"more than {max_sentences} sentences")
         return problems
+
+    def banned_in(self, text: str) -> list[str]:
+        """The words this persona never uses that appear in a text."""
+        lowered = text.lower()
+        return [
+            word for word in self.voice.get("banned", []) if re.search(rf"\b{re.escape(word.lower())}\b", lowered)
+        ]
 
     def _find(self, key: str) -> str | None:
         node: Any = self._lines

@@ -1,16 +1,30 @@
 "use client";
 
 import { Ban, Check } from "lucide-react";
+import { useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
+import { Lessons } from "@/components/Lessons";
 import { NoteCard } from "@/components/Notes";
+import { PostArea } from "@/components/PostEditor";
 import { useStream } from "@/components/StreamProvider";
-import { Notice } from "@/components/ui";
+import { InlineError, Notice } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
-import { fetchNotes, fetchPitch } from "@/lib/api";
+import { fetchNotes, fetchPitch, fetchPosts, setTone } from "@/lib/api";
 import { agentView, lastFinishedRun, lastOfType } from "@/lib/feed";
 import { plural } from "@/lib/format";
 import { SHOWCASE } from "@/lib/showcase";
+import type { PitchSheet, Post } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
+
+const LESSON_COPY = {
+  title: "What Pitch has learned",
+  intro:
+    "When you change a draft before posting it, or pass on one and say why, Pitch turns that into one short rule. " +
+    "Rules that are switched on go to Claude with every draft. Reword, switch off or delete any of them, or add " +
+    "your own.",
+  empty: "Nothing yet. The first rule appears after you edit a draft and post it.",
+  placeholder: "Teach Pitch a rule, for example: Never use hashtags.",
+};
 
 function List({ title, items }: { title: string; items: string[] }) {
   if (!items.length) return null;
@@ -26,19 +40,85 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+/** The tone your posts are written in. Until you choose, a draft comes in every tone. */
+function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tones = sheet.tones ?? {};
+  const tone = sheet.tone ?? null;
+
+  async function choose(next: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      await setTone(next);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't go through.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const pill = (on: boolean) =>
+    `rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
+      on ? "bg-fg text-bg" : "border border-line-strong text-muted hover:text-fg"
+    }`;
+
+  return (
+    <section className="panel flex flex-col gap-3 p-6" aria-label="Your tone">
+      <div>
+        <h2 className="font-display text-xl font-semibold tracking-tight">Your tone</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          {tone
+            ? `Drafts are written in the ${tones[tone]?.label.toLowerCase() ?? tone} tone, with two other opening lines to choose from.`
+            : "Not chosen yet. A draft comes in every tone, and the one you post becomes yours."}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(tones).map(([key, value]) => (
+          <button key={key} type="button" aria-pressed={tone === key} disabled={busy} onClick={() => choose(key)} className={pill(tone === key)}>
+            {value.label}
+          </button>
+        ))}
+        <button type="button" aria-pressed={tone === null} disabled={busy} onClick={() => choose(null)} className={pill(tone === null)}>
+          Every tone
+        </button>
+      </div>
+      <dl className="flex flex-col gap-1.5 text-xs leading-relaxed text-faint">
+        {Object.entries(tones).map(([key, value]) => (
+          <div key={key}>
+            <dt className="inline font-medium text-muted">{value.label}: </dt>
+            <dd className="inline">{value.how}</dd>
+          </div>
+        ))}
+      </dl>
+      {error && <InlineError>{error}</InlineError>}
+    </section>
+  );
+}
+
 export default function PitchPage() {
   const { events, status } = useStream();
+  const [version, setVersion] = useState(0);
+  const changed = () => setVersion((v) => v + 1);
   // Re-read when an agent's status changes or a run finishes: either can change what a note is worth.
-  const key = `${status}:${lastOfType(events, "agent.status")}:${lastFinishedRun(events)}`;
+  const key = `${status}:${version}:${lastOfType(events, "agent.status")}:${lastFinishedRun(events)}`;
   const { data: sheet, error } = useApi(`pitch:${key}`, fetchPitch);
   const { data: tray } = useApi(`notes:${key}`, fetchNotes);
+  // Drafts exist on the working desk only. The view-only copy never holds one.
+  const { data: mine } = useApi(`posts:${key}`, (signal) => (SHOWCASE ? Promise.resolve(null) : fetchPosts(signal)));
   const meta = agentMeta("pitch");
 
   // What can be posted comes first. Within each group the newest note stays on top.
   const all = tray?.handoffs ?? [];
   const notes = [...all.filter((note) => note.brief?.ready), ...all.filter((note) => !note.brief?.ready)];
   const ready = all.filter((note) => note.brief?.ready).length;
-  const view = agentView(events, "pitch", sheet?.status ?? { status: "idle", text: "Nothing worth a post yet.", mood: "normal" });
+  const view = agentView(events, "pitch", sheet?.status ?? { status: "idle", text: "Nothing new worth a post.", mood: "normal" });
+
+  // The newest post written for each note. The list comes newest first.
+  const posts = new Map<string, Post>();
+  for (const post of mine?.posts ?? []) if (!posts.has(post.thread)) posts.set(post.thread, post);
 
   return (
     <div className="flex flex-col gap-8">
@@ -70,8 +150,8 @@ export default function PitchPage() {
               <div>
                 <h2 className="font-display text-xl font-semibold tracking-tight">What Pitch does</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted">
-                  So far it reads. It uses rules only: no model, and no request to GitHub or anywhere else. Writing
-                  the post comes next, and pressing Post will always be yours.
+                  It reads Patch&apos;s notes with rules only. It writes a draft when you ask, in one Claude call.
+                  It has no access to LinkedIn: you copy the draft and press Post yourself.
                 </p>
               </div>
               <ul className="flex flex-col gap-2 text-sm leading-relaxed">
@@ -104,8 +184,8 @@ export default function PitchPage() {
               <List title="Things it believes" items={sheet.persona.opinions} />
               <List title="Habits" items={sheet.persona.quirks} />
               <p className="border-t border-line pt-4 text-xs leading-relaxed text-faint">
-                This is how Pitch talks on this site. A post goes out under your name, so it will be written as
-                you. To change the voice, edit backend/app/agents/linkedin/persona.toml.
+                This is how Pitch talks on this site. A post goes out under your name, so it is written as you. To
+                change the voice, edit backend/app/agents/linkedin/persona.toml.
               </p>
             </section>
           </div>
@@ -124,12 +204,28 @@ export default function PitchPage() {
                   {plural(notes.length, "note")}. Enough for a post: <span className="font-semibold">{ready}</span>.
                 </p>
               )}
+              {SHOWCASE && (
+                <p className="mt-3 text-xs leading-relaxed text-faint">
+                  Drafts are written on the working desk and stay there. This copy shows the notes and the facts
+                  only.
+                </p>
+              )}
             </div>
 
             {notes.length ? (
               <ul className="flex flex-col gap-4">
                 {notes.map((note) => (
-                  <NoteCard key={note.id} note={note} />
+                  <NoteCard key={note.id} note={note}>
+                    {mine && (
+                      <PostArea
+                        note={note}
+                        post={note.thread ? posts.get(note.thread) : undefined}
+                        writing={mine.writing.includes(note.id)}
+                        claudeOff={mine.claude_off}
+                        onChanged={changed}
+                      />
+                    )}
+                  </NoteCard>
                 ))}
               </ul>
             ) : (
@@ -137,6 +233,19 @@ export default function PitchPage() {
                 No notes yet. The first audit is a baseline, so nothing in it is news. A note appears when
                 something changes after that.
               </p>
+            )}
+
+            {!SHOWCASE && (
+              <>
+                <Tone sheet={sheet} onChanged={changed} />
+                <Lessons
+                  agent="pitch"
+                  copy={LESSON_COPY}
+                  lessons={sheet.lessons ?? []}
+                  limit={sheet.lesson_limit ?? 12}
+                  onChanged={changed}
+                />
+              </>
             )}
           </section>
         </div>

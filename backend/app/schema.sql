@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS lessons (
     created_at  TEXT    NOT NULL
 );
 
+-- Posts Pitch drafted for LinkedIn. They stay on this machine: nothing here is ever exported,
+-- and nothing reaches LinkedIn unless you paste it there yourself.
+CREATE TABLE IF NOT EXISTS posts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread     TEXT NOT NULL,            -- the note from Patch it was written for
+    repo       TEXT,
+    status     TEXT NOT NULL,            -- draft, posted, dismissed, replaced
+    title      TEXT NOT NULL,
+    payload    TEXT NOT NULL,            -- JSON: the versions Pitch wrote, and what they were written from
+    draft_key  TEXT NOT NULL,            -- fingerprint of the input, so the same draft isn't written twice
+    text       TEXT,                     -- your version: what you last copied, or what you posted
+    tone       TEXT,                     -- which version you chose
+    reason     TEXT,                     -- why you passed on it, if you said
+    run_id     TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS posts_thread ON posts(thread, id);
+
 -- Plan usage as Claude Code reported it, so the metrics page can draw it against the stop.
 CREATE TABLE IF NOT EXISTS usage_readings (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,

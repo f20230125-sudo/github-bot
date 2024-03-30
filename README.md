@@ -3,9 +3,9 @@
 One website where you watch AI agents look after your online presence, step by step.
 
 The first agent is **Patch**. It looks after a GitHub account: it audits every repository, drafts
-fixes, and applies them only after you approve. The second is **Pitch**, the LinkedIn agent. So far
-it reads: Patch leaves it a note when something is worth a post, and Pitch says whether there is
-enough for one. It does not write posts yet, and it never touches LinkedIn itself.
+fixes, and applies them only after you approve. The second is **Pitch**, the LinkedIn agent. Patch
+leaves it a note when something is worth a post, Pitch says whether there is enough for one, and
+writes a draft when you ask. You copy the draft and post it yourself: Pitch never touches LinkedIn.
 
 Everything runs on your own machine. Patch's writing is done by Claude through the Claude Code
 program you are already signed in to, so it uses your Claude plan. There is no API key and nothing
@@ -45,14 +45,32 @@ and 0 model calls.
 | Job | What happens | Uses Claude? |
 |---|---|---|
 | Read notes | When Patch finishes a job, Pitch reads any note Patch left, asks Patch for the facts behind it, and answers: enough for a post, or not yet and why | No |
+| Write a post | When you press **Write the post** on a note, Pitch drafts it from the facts and the README | One call, or none |
+| Learn | Turns an edit you made before posting, or your reason for passing on a draft, into a short rule for later drafts | One small call |
 
 A note has enough for a post when the repository says what it is and scores 80 or more. Pitch
 lists what a post may state (what it is, the score, what it is built with, the license, the links,
-a picture from the README), and only those facts may appear in one. A note is answered once, and
-again only if its verdict changes. With nothing new, Pitch does nothing at all.
+a picture from the README). A note is answered once, and again only if its verdict changes. With
+nothing new, Pitch does nothing at all.
+
+**Writing.** The first draft comes in three tones (plain, story, technical) from one Claude call.
+The one you post becomes your tone, and later drafts come in that tone with two other opening
+lines to choose from. The post is written in the first person, as you, not in Pitch's own voice.
+
+Before you see a draft, rules check every version. One is thrown away if it has a number that is
+not in the facts or the README, a link that is not in the facts, a hype word, an exclamation mark,
+an emoji, Markdown, more than three hashtags, or more than 1,300 characters. If nothing survives,
+or Claude is off or over the 40% stop, a plain post built from the facts by a template stands in.
+
+**Posting.** You edit the draft on Pitch's page. **Copy** puts it on the clipboard. **Open
+LinkedIn** opens LinkedIn's own new-post window with the text filled in, and you press Post there.
+**I posted it** only tells Pitch, so it can learn from what you changed.
+
+**Drafts stay on your machine.** They are kept in their own table and are not part of the public
+snapshot. Neither are the runs that wrote them, the tone you chose, or the rules learned from them.
 
 Pitch has no access to LinkedIn. It cannot sign in, post, comment, message, or read a feed or a
-profile, and it holds no LinkedIn password or token. Pressing Post will always be yours.
+profile, and it holds no LinkedIn password or token.
 
 ## How it stays cheap
 
@@ -156,7 +174,7 @@ only grant it if you are comfortable with that.
 | Repos | A scorecard for each repository, with findings and score history |
 | Metrics | Requests per day, tokens by job, plan usage against the stop, and every run |
 | Patch | Its voice, mood, what it has learned from you, and exactly what it may change |
-| Pitch | Each note from Patch with Pitch's verdict and the facts a post may state, and what Pitch can never do |
+| Pitch | Each note from Patch with Pitch's verdict and the facts a post may state, the draft and what to do with it, your tone, what Pitch has learned, and what it can never do |
 | Setup | The GitHub token, the Claude connection test, and the safety switches |
 
 Opening a run shows its trace: every request and call it made, with a replay.
@@ -213,7 +231,7 @@ backend/app/
   core/                              shared by every agent: runs, jobs, scheduler, pause,
                                      the Claude runner, the usage stop, chat, lessons, proposals
   agents/github/                     Patch: client, sync, checks, drafts, actions, handoffs, chat
-  agents/linkedin/                   Pitch: reads Patch's notes and says which have enough for a post
+  agents/linkedin/                   Pitch: reads Patch's notes, drafts posts, checks them, learns from you
   api/                               the HTTP endpoints
 backend/tests/                       a stand-in GitHub and a stand-in Claude; nothing real is called
 frontend/src/                        the site: app/ (pages), components/, lib/
@@ -241,9 +259,10 @@ requests and counts every call, and a stand-in for the Claude Code program.
 
 These parts are tested against the stand-ins only. Check them the first time you use them:
 
-- **Claude calls.** No real call has been made by this code. Press **Test Claude connection**
-  first. It shows whether Claude Code reports a usage percentage and whether structured output
-  works with tools switched off.
+- **Claude calls.** No real call has been made by this code, for Patch's drafts or for Pitch's
+  posts. Press **Test Claude connection** first. It shows whether Claude Code reports a usage
+  percentage and whether structured output works with tools switched off. Until then Pitch
+  writes from its template.
 - **Reading with a token.** The single-query path for repository details needs a token.
 - **Writing to GitHub.** Leave dry-run on until you have read a few proposals.
 - **Releases** are only noticed with a token.
@@ -256,8 +275,9 @@ its own API key.
 
 ## Not built yet
 
-Pitch writing the posts (so far it only reads), pull request review, release notes, a profile
-README, a weekly digest, and pull requests that change code.
+Patch and Pitch talking to each other beyond notes and answers, a build-in-public digest, a check
+of your LinkedIn profile text, pull request review, release notes, a profile README, and pull
+requests that change code.
 
 ## License
 
