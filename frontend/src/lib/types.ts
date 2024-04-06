@@ -294,6 +294,9 @@ export type Post = {
   updated_at: string;
 };
 
+/** A public project of yours with no note yet: something you can ask Pitch to write about. */
+export type PickableRepo = { repo: string; name: string; ready: boolean; reason: string | null };
+
 export type PitchPosts = {
   posts: Post[];
   tone: string | null;

@@ -53,6 +53,10 @@ lists what a post may state (what it is, the score, what it is built with, the l
 a picture from the README). A note is answered once, and again only if its verdict changes. With
 nothing new, Pitch does nothing at all.
 
+Patch's first audit is a baseline, so it leaves no notes. To get a post about a repository Patch
+has not flagged, pick it on Pitch's page. That leaves a note of your own, which Pitch reads like
+any other.
+
 **Writing.** The first draft comes in three tones (plain, story, technical) from one Claude call.
 The one you post becomes your tone, and later drafts come in that tone with two other opening
 lines to choose from. The post is written in the first person, as you, not in Pitch's own voice.
