@@ -44,7 +44,11 @@ async def posts(request: Request):
         "tone": pitch.tone(),
         # The notes a draft is being written for right now, by id.
         "writing": [int(note) for note in writing if note.isdigit()],
+        # Why Claude can't be asked, going by the last usage reading. Reading it here costs nothing
+        # and waits for nothing. `claude_rechecks` says the reading will be taken again, for free,
+        # when you ask for a draft: so "off" here can still turn into a written draft.
         "claude_off": await state.claude.unavailable_reason(),
+        "claude_rechecks": state.claude.rechecks(),
     }
 
 

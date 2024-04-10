@@ -37,7 +37,7 @@ async def learn_from(
         await ctx.step("feedback", say("learn.rejected" if turned_down else "learn.edited"), repo=repo)
 
         text: str | None = None
-        off = await agent.claude.unavailable_reason()
+        off = await agent.claude.unavailable_reason(refresh=True)
         if off is None:
             try:
                 draft = await agent.claude.ask_structured(
