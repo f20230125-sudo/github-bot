@@ -248,6 +248,8 @@ export type Brief = {
   missing: string[];
   /** What would make the post better, without holding it back. */
   wanted: string[];
+  /** The post rules alone can write from the facts, with no model. Null when there isn't enough for a post. */
+  plain_post?: string | null;
 };
 
 /** A note Patch left for Pitch about something worth a post. */
