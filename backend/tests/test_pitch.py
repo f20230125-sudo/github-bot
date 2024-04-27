@@ -217,7 +217,7 @@ async def test_a_note_that_has_to_wait_says_why_and_is_answered_again_when_it_is
     assert first.payload["text"] == "Not yet. Nothing says what it is. It needs a description."
     assert by_pitch(db, "agent.status")[-1].payload["text"] == "1 note on hold. Not enough for a post yet."
     [note] = pitch.notes()
-    assert note["brief"]["plain_post"] is None  # nothing to post about yet
+    assert note["brief"]["plain_posts"] == []  # nothing to post about yet
     assert note["brief"]["verdict"] == "Not yet." and note["brief"]["missing"] == [
         "Nothing says what it is. It needs a description.",
         f"It scores {score}. I would wait for 80.",
@@ -252,8 +252,10 @@ async def test_notes_come_newest_first_with_what_a_post_may_state(patch, pitch, 
         True, "launch", "Launch post", "Enough for a post.",
     )  # fmt: skip
     assert brief["missing"] == [] and brief["wanted"] == []  # it has a picture and a live link
-    # The post rules alone can write: what the view-only copy offers, with no model to ask.
-    assert brief["plain_post"] == (
+    # The post as rules alone can write it, in every tone: what a copy with no Claude to ask offers.
+    plain, story, technical = brief["plain_posts"]
+    assert (plain["tone"], plain["label"], story["tone"], technical["tone"]) == ("plain", "Plain", "story", "technical")
+    assert plain["text"] == (
         "I built messy.\n\nA project.\n\nBuilt with Python. Open source under the MIT license.\n\n"
         "Try it: https://messy.example\nCode: https://github.com/octo/messy"
     )
