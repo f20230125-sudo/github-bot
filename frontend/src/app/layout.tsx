@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Hubot_Sans, Martian_Mono, Mona_Sans } from "next/font/google";
 import { Header } from "@/components/Header";
+import { ShowcaseBanner } from "@/components/ShowcaseBanner";
 import { StreamProvider } from "@/components/StreamProvider";
 import "./globals.css";
 
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <StreamProvider>
           <Header />
+          <ShowcaseBanner />
           <main className="mx-auto max-w-[1240px] px-4 pb-24 pt-8 sm:px-8">{children}</main>
         </StreamProvider>
       </body>
