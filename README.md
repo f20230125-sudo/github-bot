@@ -10,8 +10,8 @@ Everything runs on your own machine. Patch's writing is done by Claude through t
 program you are already signed in to, so it uses your Claude plan. There is no API key and nothing
 here can charge you.
 
-**Live demo: https://github-bot-wine.vercel.app** (view-only: it replays a recording of a real
-audit, and nothing on it can change anything)
+**Live site: https://github-bot-wine.vercel.app** (view-only: it shows the latest scheduled check
+of these repositories, and each suggestion opens GitHub with the change filled in)
 
 ![The Floor: a chat answer from stored data, a drafting run, and eight proposals waiting for approval](docs/screenshots/floor.png)
 
@@ -145,18 +145,31 @@ only grant it if you are comfortable with that.
 
 Opening a run shows its trace: every request and call it made, with a replay.
 
-## The public demo
+## The public site
 
 The working desk cannot be hosted: it uses the Claude sign-in and the GitHub token on its owner's
-machine. A hosted copy is therefore a view-only demo. It replays a stored recording, and every
-control that would change something is switched off.
+machine. The hosted copy is therefore view-only. It has no backend, holds no token, and reads one
+file: `frontend/public/showcase/snapshot.json`.
 
-- In `backend`, `python -m app.showcase` writes what your desk holds now to
-  `frontend/public/showcase/snapshot.json`, and lists what the file contains. Everything in that
-  file becomes public once you push it.
-- Building with `NEXT_PUBLIC_SHOWCASE=1` makes the site read that file instead of the API. On
-  Vercel this is the default: import the repository, set the root directory to `frontend`, and
-  deploy. Each push to `main` then updates the demo.
+**It keeps itself up to date.** A scheduled job on GitHub (`.github/workflows/patch-watch.yml`)
+runs Patch's check every six hours, with rules only and no Claude. A check that finds nothing is
+one request and commits nothing. When what the site shows has changed, the job commits a new
+snapshot, and the site reads it straight from the repository. The site also says when the last
+check ran. The repository's owner can start a check by hand from the Actions tab.
+
+**Suggestions can be acted on.** Each suggested file has a button that opens GitHub's own editor
+with the name and the content filled in. Committing there is the owner's click, made on GitHub.
+The site never holds a token, so for anyone else the button leads to GitHub's offer to fork. At
+its next check Patch sees the fix and drops the suggestion.
+
+The job has no Claude, so it suggests only what rules and templates can write: licenses,
+`.gitignore` files and CI workflows. Descriptions, topics and README rewrites come from the desk
+on the owner's machine.
+
+To set it up for your own account: import the repository in Vercel, choose the `frontend` folder,
+and deploy. On Vercel the view-only build is the default (`NEXT_PUBLIC_SHOWCASE=1` selects it
+anywhere else). To publish what your own desk holds instead, run `python -m app.showcase` in
+`backend`, read the list it prints, since everything in the file becomes public, then commit.
 
 ## Settings
 
@@ -171,7 +184,7 @@ goes to GitHub is always plain.
 ```
 backend/app/
   main.py  config.py  security.py    the app, settings, and the local-only guard
-  showcase.py                        exports the snapshot behind the public, view-only demo
+  showcase.py  cloud.py              the snapshot behind the public site, and its scheduled check
   events.py  bus.py  db.py           typed events: stored first, then sent to the live feed
   core/                              shared by every agent: runs, jobs, scheduler, pause,
                                      the Claude runner, the usage stop, chat, lessons, proposals

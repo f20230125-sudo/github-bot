@@ -157,7 +157,9 @@ export default function PatchPage() {
                   of the 5-hour or the weekly limit, and it does not call at all when it cannot read the usage.
                 </p>
                 <p className="text-sm leading-relaxed text-muted">
-                  This copy makes no calls of any kind. Everything on it was recorded.
+                  The scheduled check that keeps this site up to date never calls Claude. It uses rules and
+                  templates only, so what it suggests is limited to what those can write: licenses, .gitignore
+                  files and CI workflows.
                 </p>
               </section>
             ) : (
