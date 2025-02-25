@@ -18,8 +18,10 @@ export async function GET() {
     return new Response(file.body, {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        // Shared for a few seconds between visitors. A page that has just run a check asks with
-        // a new address, so it never gets the copy from before the check.
+        // Shared between visitors: fresh for 15 seconds, then served once more while a new copy
+        // is fetched, up to 45 seconds old. So the plain address can still answer with the copy
+        // from before a check that has just finished. A page that knows of a newer one asks with
+        // ?v=, which makes a new address that no older copy is stored under.
         "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
       },
     });
