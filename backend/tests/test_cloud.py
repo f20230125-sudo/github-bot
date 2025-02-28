@@ -108,8 +108,12 @@ async def test_a_push_that_changes_nothing_you_can_see_causes_no_commit(app, out
     healthy = fake.repos["healthy"]
     healthy.pushed_at = "2026-10-05T00:00:00Z"
     healthy.files["frontend/public/showcase/snapshot.json"] = "{}"
+    healthy.unchecked_commits = 1  # a push made by a job starts no CI: the commit has no result
     assert await run_check(app) == {"changed": True, "error": None}
     assert await publish(app, out) is False
+    # CI still counts as passing: that is what the last commit it ran on says.
+    repos = (await export_snapshot(app))["routes"]["/api/repos"]["repos"]
+    assert [repo["ci_state"] for repo in repos if repo["name"] == "healthy"] == ["success"]
 
 
 async def test_fixing_it_on_github_drops_the_suggestion_and_publishes(app, out, fake, db):
@@ -189,6 +193,31 @@ async def test_the_fingerprint_ignores_clocks_and_stars_but_not_substance(app, f
     fake.repos["messy"].description = "Now it says what it is."
     await run_check(app)
     assert digest(await export_snapshot(app)) != first
+
+
+async def test_ci_starting_or_finishing_is_not_worth_a_deployment_but_ci_failing_is(app, fake):
+    await run_check(app)
+    first = digest(await export_snapshot(app))
+    healthy = fake.repos["healthy"]
+
+    healthy.ci, healthy.pushed_at = "in_progress", "2026-10-05T00:00:00Z"
+    await run_check(app)
+    running = await export_snapshot(app)
+    assert digest(running) == first
+    # "CI running" is out of date within minutes. The desk says it, the published copy says nothing.
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=f"http://{HOST}") as client:
+        live = (await client.get("/api/repos")).json()["repos"]
+    assert [repo["ci_state"] for repo in live if repo["name"] == "healthy"] == ["pending"]
+    assert [repo["ci_state"] for repo in running["routes"]["/api/repos"]["repos"] if repo["name"] == "healthy"] == [None]
+    assert running["routes"]["/api/repos/octo/healthy"]["repo"]["ci_state"] is None
+
+    healthy.ci, healthy.pushed_at = "success", "2026-10-05T00:10:00Z"
+    await run_check(app)
+    assert digest(await export_snapshot(app)) == first
+
+    healthy.ci, healthy.pushed_at = "failure", "2026-10-05T00:20:00Z"
+    await run_check(app)
+    assert digest(await export_snapshot(app)) != first  # failing CI is a finding, and a lower score
 
 
 def test_still_needed_for_a_metadata_sweep(db, bus, fake, tmp_path):
