@@ -68,7 +68,11 @@ export default function FloorPage() {
   const patch = agentView(events, "patch");
   const showingDemo = events.some((e) => e.payload.demo === true);
   const paused = desk?.paused ?? false;
-  const watch = desk?.agents.find((agent) => agent.id === "patch")?.watch;
+  const card = desk?.agents.find((agent) => agent.id === "patch");
+  const watch = card?.watch;
+  // The face follows the health of the repositories as it is now, which the desk works out afresh.
+  // The mood in a stored status line is the one Patch had when it said that line.
+  const mood = card?.mood ?? patch.mood;
   // The day's totals move when a run finishes and when a quiet check goes by.
   const { data: metrics } = useApi(
     `today:${status}:${lastFinishedRun(events)}:${watch?.last?.at ?? ""}`,
@@ -139,7 +143,7 @@ export default function FloorPage() {
             color={patchMeta.color}
             status={patch.status}
             text={patch.text}
-            mood={patch.mood}
+            mood={mood}
             watch={watch}
             paused={paused}
           />
@@ -149,7 +153,7 @@ export default function FloorPage() {
             color={pitchMeta.color}
             status="idle"
             text="Seat reserved. The LinkedIn agent joins the desk in the next round."
-            mood="focused"
+            mood="normal"
             reserved
           />
 
