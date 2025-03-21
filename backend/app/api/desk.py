@@ -1,4 +1,4 @@
-"""The desk as a whole: who works here, the pause switch, chat, and what is waiting for Pitch."""
+"""The desk as a whole: who works here, the pause switch, chat, and the notes Patch leaves Pitch."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def watch_view(state: Any) -> dict[str, Any]:
 @router.get("/agents")
 async def agents(request: Request):
     state = request.app.state
-    cards = [state.patch.card() | {"watch": watch_view(state)}]
+    cards = [state.patch.card() | {"watch": watch_view(state)}, state.pitch.card()]
     # A seat nobody has taken yet. It is listed so the site can show it empty, not to pretend.
     cards += [asdict(seat) | {"hired": False} for seat in state.agents.seats()]
     return {"paused": state.desk.paused, "current": state.jobs.current, "agents": cards}
@@ -37,9 +37,11 @@ async def agents(request: Request):
 async def agent_sheet(request: Request, agent_id: str):
     """One agent's own page: its voice, what it may do, and what it has learned from you."""
     state = request.app.state
-    if agent_id != state.patch.id:
-        raise HTTPException(404, "Nobody by that name works here yet.")
-    return state.patch.sheet() | {"watch": watch_view(state), "paused": state.desk.paused}
+    if agent_id == state.patch.id:
+        return state.patch.sheet() | {"watch": watch_view(state), "paused": state.desk.paused}
+    if agent_id == state.pitch.id:
+        return state.pitch.sheet() | {"paused": state.desk.paused}
+    raise HTTPException(404, "Nobody by that name works here yet.")
 
 
 # -- lessons ----------------------------------------------------------------------------------
@@ -127,14 +129,6 @@ async def chat_history(request: Request, limit: int = Query(40, ge=1, le=200)):
 
 @router.get("/handoffs")
 async def handoffs(request: Request, limit: int = Query(20, ge=1, le=100)):
-    """What Patch has left for the LinkedIn agent, newest first. Nobody has picked these up."""
-    events = reversed(request.app.state.db.messages("handoff", limit))
-    return {
-        "handoffs": [
-            {
-                "id": ev.id, "ts": ev.ts, "repo": ev.repo, "from": ev.payload.get("from"), "to": ev.payload.get("to"),
-                "topic": ev.payload.get("topic"), "text": ev.payload.get("text"), "data": ev.payload.get("data") or {},
-            }
-            for ev in events
-        ]
-    }  # fmt: skip
+    """What Patch has left for Pitch, newest first, each with Pitch's reading of it: whether there
+    is enough for a post as things stand now, and what the post may state."""
+    return {"handoffs": request.app.state.pitch.notes(limit)}

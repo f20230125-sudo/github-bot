@@ -19,6 +19,7 @@ from ...core.chat import unverified_numbers
 from ...core.claude import Claude
 from ...core.desk import is_paused
 from ...core.memory import MAX_ACTIVE, LessonStore
+from ...core.mood import MOODS, compute_mood
 from ...core.persona import Persona
 from ...core.policy import Policy
 from ...core.proposals import Proposal, ProposalStore
@@ -33,10 +34,10 @@ from .checks import CHECKS_VERSION, build_report
 from .client import ALLOWED_WRITES, NEVER, AuthError, GitHubClient, GitHubError, RateLimited, RequestInfo
 from .decisions import DecisionError, apply_edits
 from .drafting import run_draft, settle_fixed
+from .facts import repo_facts
 from .handoffs import Handoff, listing_news, repo_news
 from .learning import feedback_of, run_learn
 from .models import RepoDetails, RepoMeta, RepoReport, RepoSnapshot
-from .mood import MOODS, compute_mood
 from .prompts import system_prompt
 from .store import RepoStore, StoredRepo, portfolio_summary
 from .sync import fetch_details, list_repos, plan_sync
@@ -179,10 +180,21 @@ class PatchAgent:
             )
         )  # fmt: skip
 
+    # -- what another agent may ask ------------------------------------------------------------
+
+    def health(self) -> int | None:
+        """The portfolio score: the average score of the audited repositories."""
+        return portfolio_summary(self.store.all())["score"]
+
+    def facts(self, full_name: str) -> dict[str, Any] | None:
+        """What Patch knows about one repository, from the last audit. None if it has never seen it."""
+        repo = self.store.get(full_name)
+        return repo_facts(repo, self.store.score_history(repo.full_name)) if repo else None
+
     # -- voice and mood -----------------------------------------------------------------------
 
     def mood(self) -> str:
-        return compute_mood(portfolio_summary(self.store.all())["score"])
+        return compute_mood(self.health())
 
     async def status(self, status: str, text: str) -> None:
         payload = {"status": status, "text": text, "mood": self.mood()}
