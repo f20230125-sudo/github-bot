@@ -55,6 +55,7 @@ nothing = "Nothing in that applies beyond this one case."
 known = "I already had that one."
 unusable = "Too long to keep as a rule. Add a shorter one on my page."
 kept_edit = "Your edit is saved with the decision. No rule made from it."
+claude_off = "Not calling Claude. {reason}"
 done = "Learned. {lessons_text} so far."
 
 # What Patch leaves for the LinkedIn agent when something is worth a post.
