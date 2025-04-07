@@ -8,6 +8,7 @@ import type {
   Handoff,
   Lesson,
   Metrics,
+  PickableRepo,
   PitchPosts,
   PitchSheet,
   Policy,
@@ -189,6 +190,17 @@ export const deleteLesson = (id: number) =>
 // -- Pitch's drafts: the working desk only ----------------------------------------------------
 
 export const fetchPosts = (signal?: AbortSignal) => request<PitchPosts>("/api/pitch/posts", { signal });
+
+export const fetchPickable = (signal?: AbortSignal) =>
+  request<{ repos: PickableRepo[] }>("/api/pitch/repos", { signal });
+
+/** Leave Pitch a note of your own: you want a post about this repository. */
+export const pickRepo = (repo: string) =>
+  request<{ id: number; repo: string }>("/api/pitch/notes", {
+    method: "POST",
+    headers: WRITE_JSON,
+    body: JSON.stringify({ repo }),
+  });
 
 /** Ask Pitch to write a post for a note. `force` writes a new one even if a draft is waiting. */
 export const writePost = (noteId: number, force = false) =>
