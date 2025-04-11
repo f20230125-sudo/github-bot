@@ -30,8 +30,25 @@ function useAction() {
 }
 
 /** A note with enough for a post and nothing written yet: the button that asks Pitch to write. */
-function Ask({ note, writing, claudeOff, onChanged }: { note: Handoff; writing: boolean; claudeOff: string | null; onChanged: Changed }) {
+function Ask({
+  note,
+  writing,
+  claudeOff,
+  rechecks,
+  onChanged,
+}: {
+  note: Handoff;
+  writing: boolean;
+  claudeOff: string | null;
+  rechecks: boolean;
+  onChanged: Changed;
+}) {
   const { busy, error, act } = useAction();
+  const how = !claudeOff
+    ? "One Claude call writes it. Rules check it against the facts before you see it."
+    : rechecks
+      ? "Claude was over your stop at the last reading. Pitch looks again when you ask, at no cost, and uses Claude if it may."
+      : "Claude is off, so this will be a plain post built from the facts. No model call.";
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -48,11 +65,7 @@ function Ask({ note, writing, claudeOff, onChanged }: { note: Handoff; writing: 
           <PenLine size={14} aria-hidden />
           {writing ? "Writing" : "Write the post"}
         </Button>
-        <span className="text-xs leading-relaxed text-faint">
-          {claudeOff
-            ? "Claude is off, so this will be a plain post built from the facts. No model call."
-            : "One Claude call writes it. Rules check it against the facts before you see it."}
-        </span>
+        <span className="text-xs leading-relaxed text-faint">{how}</span>
       </div>
       {claudeOff && <p className="text-xs leading-relaxed text-faint">{claudeOff}</p>}
       {error && <InlineError>{error}</InlineError>}
@@ -323,12 +336,14 @@ export function PostArea({
   post,
   writing,
   claudeOff,
+  rechecks,
   onChanged,
 }: {
   note: Handoff;
   post: Post | undefined;
   writing: boolean;
   claudeOff: string | null;
+  rechecks: boolean;
   onChanged: Changed;
 }) {
   if (post?.status === "draft" && !writing) {
@@ -337,5 +352,5 @@ export function PostArea({
   }
   if (post && !writing) return <Outcome note={note} post={post} onChanged={onChanged} />;
   if (!note.brief?.ready && !writing) return null;
-  return <Ask note={note} writing={writing} claudeOff={claudeOff} onChanged={onChanged} />;
+  return <Ask note={note} writing={writing} claudeOff={claudeOff} rechecks={rechecks} onChanged={onChanged} />;
 }

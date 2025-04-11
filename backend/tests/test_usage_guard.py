@@ -1,6 +1,8 @@
+from datetime import datetime
+
 import pytest
 
-from app.core.usage_guard import UsageGuard, parse_usage_text
+from app.core.usage_guard import UsageGuard, parse_reset, parse_usage, parse_usage_text
 
 NOW = 1_800_000_000.0
 
@@ -147,6 +149,89 @@ def test_millisecond_reset_times_are_understood(guard):
 )
 def test_usage_text_parsing(text, expected):
     assert parse_usage_text(text) == expected
+
+
+# What Claude Code really printed on 4 October 2026, when the 5-hour limit was at 69%.
+REAL_USAGE = """You are currently using your subscription to power your Claude Code usage
+
+Current session: 69% used · resets Oct 4, 9:20pm (Asia/Dubai)
+Current week (all models): 9% used · resets Oct 11, 4pm (Asia/Dubai)
+
+What's contributing to your limits usage?
+Approximate, based on local sessions on this machine — does not include other
+devices or claude.ai. Behaviors are independent characteristics, not a breakdown.
+
+Last 24h · 433 requests · 2 sessions
+  96% of your usage was at >150k context
+  91% of your usage came from sessions active for 8+ hours
+  Top MCP servers: claude-in-chrome 20%
+
+Last 7d · 1346 requests · 7 sessions
+  95% of your usage was at >150k context
+  82% of your usage came from sessions active for 8+ hours
+  Top skills: /dataviz 10%, /claude-api 9%, /artifact-design 4%
+"""
+
+
+def local(now: float, **fields) -> float:
+    """A moment on this machine's clock: the day of `now`, with the given fields replaced."""
+    return datetime.fromtimestamp(now).replace(second=0, microsecond=0, **fields).timestamp()
+
+
+def test_the_real_usage_text_gives_both_figures_and_both_reset_times():
+    now = datetime(2026, 10, 4, 19, 15).timestamp()
+    found = parse_usage(REAL_USAGE, now)
+
+    # The breakdown below ("96% of your usage ...", "Last 7d ...") is not mistaken for a limit.
+    assert found == {
+        "session": {"percent": 69, "resets_at": datetime(2026, 10, 4, 21, 20).timestamp()},
+        "weekly": {"percent": 9, "resets_at": datetime(2026, 10, 11, 16, 0).timestamp()},
+    }
+    assert parse_usage_text(REAL_USAGE) == {"session": 69, "weekly": 9}
+    # The same holds if the breakdown's heading names a week and nothing else.
+    assert parse_usage_text(REAL_USAGE.replace(" · 7 sessions", "")) == {"session": 69, "weekly": 9}
+
+
+@pytest.mark.parametrize(
+    ("when", "fields", "days_later"),
+    [
+        ("9:20pm", {"hour": 21, "minute": 20}, 0),
+        ("4pm", {"hour": 16, "minute": 0}, 0),
+        ("12am", {"hour": 0, "minute": 0}, 1),  # midnight has passed today, so it means tomorrow
+        ("11:05", {"hour": 11, "minute": 5}, 1),  # a time of day that has passed means tomorrow
+        ("12:30pm", {"hour": 12, "minute": 30}, 0),
+    ],
+)
+def test_a_time_of_day_is_the_next_time_the_clock_shows_it(when, fields, days_later):
+    now = datetime(2026, 10, 4, 12, 0).timestamp()
+    assert parse_reset(when, None, now) == local(now, **fields) + days_later * 86400
+
+
+def test_a_date_without_a_year_is_the_next_such_date():
+    december = datetime(2026, 12, 30, 10, 0).timestamp()
+    assert parse_reset("Jan 4, 4pm", "Not/AZone", december) == datetime(2027, 1, 4, 16, 0).timestamp()
+    assert parse_reset("Dec 30, 9am", None, december) == datetime(2026, 12, 30, 9, 0).timestamp()  # just passed
+
+
+@pytest.mark.parametrize("when", ["Oct 7", "soon", "", "25:00", "13pm", "Feb 30, 4pm", "Foo 3, 4pm"])
+def test_a_reset_time_that_cannot_be_read_is_left_unknown(when):
+    assert parse_reset(when, None, NOW) is None
+
+
+def test_a_reading_from_the_usage_text_runs_out_when_its_window_resets(db, clock):
+    clock.now = datetime(2026, 10, 4, 19, 15).timestamp()
+    guard = UsageGuard(db, clock=clock)
+    assert guard.record_usage_text(REAL_USAGE) is True
+
+    decision = guard.decide()
+    assert decision.code == "over_limit" and decision.reason.startswith("Your 5-hour usage is 69%")
+    assert "It resets at " in decision.reason
+    assert guard.snapshot()["windows"]["session"]["resets_at"] == datetime(2026, 10, 4, 21, 20).timestamp()
+
+    clock.now = datetime(2026, 10, 4, 21, 21).timestamp()  # a minute after the reset
+    after = guard.snapshot()
+    assert after["windows"]["session"]["percent"] is None  # the 69% belonged to the window that ended
+    assert after["windows"]["weekly"]["percent"] == 9  # the week has not reset
 
 
 def test_usage_text_becomes_readings(guard):

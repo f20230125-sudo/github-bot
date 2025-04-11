@@ -64,15 +64,42 @@ class Claude:
         self._auth = (time.monotonic(), status)
         return status
 
-    async def unavailable_reason(self) -> str | None:
-        """Why Claude can't be used right now, or None if it can. Makes no model call."""
+    async def unavailable_reason(self, refresh: bool = False) -> str | None:
+        """Why Claude can't be used right now, or None if it can. Makes no model call.
+
+        A job about to do work passes `refresh`. A "no" that rests on a reading which has run out,
+        or has had time to change, is then asked about again first, when asking is free. So once a
+        limit has reset, the agents go back to work without you pressing anything.
+        """
         auth = await self.auth()
         if not auth.ok:
             return auth.problem
         decision = self.guard.decide()
+        if refresh and self._worth_asking_again(decision):
+            async with self._lock:
+                try:
+                    await self._probe()
+                except ClaudeError as exc:
+                    if exc.result:
+                        self.guard.record_events(exc.result.rate_limits)
+            decision = self.guard.decide()
         if decision.allowed or decision.code == "stale":  # a stale reading gets refreshed before the next call
             return None
         return decision.reason
+
+    def _worth_asking_again(self, decision: Decision) -> bool:
+        """Whether a "no" could have changed and can be checked for nothing: Claude Code answers its
+        usage command by itself, and the reading has run out or is old enough for a reset to have
+        happened since."""
+        if decision.allowed or self.guard.usage_command != "local":
+            return False
+        if decision.code == "no_reading":
+            return True
+        return decision.code == "over_limit" and self.guard.seconds_since_reading() > self.guard.fresh_seconds
+
+    def rechecks(self) -> bool:
+        """Whether the next job will look at the usage again, at no cost, before taking "no" for an answer."""
+        return self._worth_asking_again(self.guard.decide())
 
     # -- the usage stop -----------------------------------------------------------------------
 
