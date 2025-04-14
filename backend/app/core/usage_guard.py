@@ -30,6 +30,7 @@ LOG_EVERY_SECONDS = 600
 SESSION_SECONDS = 5 * 3600
 WEEK_SECONDS = 7 * 86400
 WINDOW_SECONDS = {"session": SESSION_SECONDS, "weekly": WEEK_SECONDS}
+JUST_BEFORE_SECONDS = 300  # a usage check this long before a window's first call still describes that window
 WINDOW_LABEL = {"session": "5-hour", "weekly": "weekly"}
 
 # How Claude Code names the windows in its rate-limit reports.
@@ -245,7 +246,7 @@ class UsageGuard:
             elif window and resets_at:
                 # A report with no figure. It still tells us when the window resets. Keep the last
                 # figure only if it was taken in this same window: after a reset it no longer holds.
-                same_window = abs((previous.get("resets_at") or 0) - resets_at) < 120
+                same_window = _read_in_window(previous, resets_at, WINDOW_SECONDS[key])
                 state["readings"][key] = {
                     "percent": previous.get("percent") if same_window else None,
                     "resets_at": resets_at,
@@ -372,6 +373,18 @@ class UsageGuard:
                 for window in ("session", "weekly")
             },
         }
+
+
+def _read_in_window(previous: dict[str, Any], resets_at: float, length: float) -> bool:
+    """Whether the figure we hold was read in the window that ends at `resets_at`."""
+    known = previous.get("resets_at")
+    if known:
+        return abs(known - resets_at) < 120
+    # The figure came without a reset time, as "0% used" does before a window has begun. It is
+    # this window's figure if it was read after the window began, or just before the call that
+    # began it. A window begins with the first call after the last one ran out.
+    began = resets_at - length
+    return previous.get("percent") is not None and previous.get("at", 0) > began - JUST_BEFORE_SECONDS
 
 
 def _iso(epoch: float) -> str:

@@ -117,8 +117,8 @@ export function ClaudePanel() {
       <div>
         <h2 className="font-display text-xl font-semibold tracking-tight">Claude</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Patch calls the Claude Code program signed in on this machine, so it uses your plan and never an API key.
-          It stops calling Claude once your usage reaches the stop below.
+          Patch and Pitch call the Claude Code program signed in on this machine, so they use your plan and never
+          an API key. They stop calling Claude once your usage reaches the stop below.
         </p>
       </div>
 
@@ -145,7 +145,9 @@ export function ClaudePanel() {
               <div className="flex items-start gap-3">
                 <Dot status={status.guard.allowed ? "good" : "warning"} className="mt-2" />
                 <div>
-                  <p className="font-medium">{status.guard.allowed ? "Patch may call Claude" : "Patch is not calling Claude"}</p>
+                  <p className="font-medium">
+                    {status.guard.allowed ? "The agents may call Claude" : "The agents are not calling Claude"}
+                  </p>
                   <p className="mt-1 text-sm text-muted">
                     {status.guard.reason}
                     {status.guard.code === "no_reading" && " Run the test below to take a first reading."}

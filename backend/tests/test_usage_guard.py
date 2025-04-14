@@ -234,6 +234,25 @@ def test_a_reading_from_the_usage_text_runs_out_when_its_window_resets(db, clock
     assert after["windows"]["weekly"]["percent"] == 9  # the week has not reset
 
 
+def test_a_new_window_keeps_the_zero_read_just_before_its_first_call(guard, clock):
+    """What really happened after a reset: "0% used" with no reset time, then the first call's own
+    report, which names the new window's end and no figure. The 0% is that window's figure."""
+    guard.record_usage_text("Current session: 0% used\nCurrent week (all models): 11% used · resets Oct 11, 3:59pm")
+    clock.now += 3
+    guard.record_events([event(None, resets_in=5 * 3600, now=clock.now)])
+
+    session = guard.snapshot()["windows"]["session"]
+    assert (session["percent"], session["resets_at"], session["source"]) == (0, clock.now + 5 * 3600, "usage command")
+    assert guard.decide().reason == "Weekly usage is 11%, under the 40% stop."
+
+
+def test_a_figure_read_long_before_a_window_began_does_not_carry_into_it(guard, clock):
+    guard.record_usage_text("Current session: 79% used")  # no reset time came with it
+    clock.now += 2 * 3600  # that window ran out, and a call starts a new one
+    guard.record_events([event(None, resets_in=5 * 3600, now=clock.now)])
+    assert guard.snapshot()["windows"]["session"]["percent"] is None
+
+
 def test_usage_text_becomes_readings(guard):
     assert guard.record_usage_text("Current session\n12% used\n\nCurrent week (all models)\n44% used") is True
     snapshot = guard.snapshot()
