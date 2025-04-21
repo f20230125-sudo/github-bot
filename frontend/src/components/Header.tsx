@@ -72,8 +72,6 @@ export function Header() {
   const { status, desk } = useStream();
   const pathname = usePathname();
   const s = SHOWCASE ? VIEW_ONLY : STATUS_COPY[status === "live" && desk?.paused ? "paused" : status];
-  // The view-only copy has nothing to set up.
-  const sections = SHOWCASE ? NAV.filter((item) => item.href !== "/setup") : NAV;
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur">
@@ -88,7 +86,7 @@ export function Header() {
 
         {/* On a narrow screen the sections scroll sideways, so the pause switch never leaves the screen. */}
         <nav aria-label="Sections" className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {sections.map(({ href, label, also }) => {
+          {NAV.map(({ href, label, also }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href) || (also ? pathname.startsWith(also) : false);
             return (

@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { Lessons } from "@/components/Lessons";
 import { NoteCard } from "@/components/Notes";
+import { PlainPost } from "@/components/PlainPost";
 import { PostArea } from "@/components/PostEditor";
 import { useStream } from "@/components/StreamProvider";
 import { Button, InlineError, Notice } from "@/components/ui";
@@ -99,12 +100,16 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
   );
 }
 
-/** The tone your posts are written in. Until you choose, a draft comes in every tone. */
+/**
+ * The tone your posts are written in. Until you choose, a draft comes in every tone.
+ * The view-only copy shows the tones there are, and can't choose one.
+ */
 function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tones = sheet.tones ?? {};
   const tone = sheet.tone ?? null;
+  if (!Object.keys(tones).length) return null; // a snapshot from before Pitch could write
 
   async function choose(next: string | null) {
     setBusy(true);
@@ -127,23 +132,27 @@ function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }
   return (
     <section className="panel flex flex-col gap-3 p-6" aria-label="Your tone">
       <div>
-        <h2 className="font-display text-xl font-semibold tracking-tight">Your tone</h2>
+        <h2 className="font-display text-xl font-semibold tracking-tight">{SHOWCASE ? "Tone" : "Your tone"}</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          {tone
-            ? `Drafts are written in the ${tones[tone]?.label.toLowerCase() ?? tone} tone, with two other opening lines to choose from.`
-            : "Not chosen yet. A draft comes in every tone, and the one you post becomes yours."}
+          {SHOWCASE
+            ? "On the working desk, the first draft comes in each of these tones. The one its owner posts becomes the tone for later drafts. Which one was chosen stays on the desk."
+            : tone
+              ? `Drafts are written in the ${tones[tone]?.label.toLowerCase() ?? tone} tone, with two other opening lines to choose from.`
+              : "Not chosen yet. A draft comes in every tone, and the one you post becomes yours."}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(tones).map(([key, value]) => (
-          <button key={key} type="button" aria-pressed={tone === key} disabled={busy} onClick={() => choose(key)} className={pill(tone === key)}>
-            {value.label}
+      {!SHOWCASE && (
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(tones).map(([key, value]) => (
+            <button key={key} type="button" aria-pressed={tone === key} disabled={busy} onClick={() => choose(key)} className={pill(tone === key)}>
+              {value.label}
+            </button>
+          ))}
+          <button type="button" aria-pressed={tone === null} disabled={busy} onClick={() => choose(null)} className={pill(tone === null)}>
+            Every tone
           </button>
-        ))}
-        <button type="button" aria-pressed={tone === null} disabled={busy} onClick={() => choose(null)} className={pill(tone === null)}>
-          Every tone
-        </button>
-      </div>
+        </div>
+      )}
       <dl className="flex flex-col gap-1.5 text-xs leading-relaxed text-faint">
         {Object.entries(tones).map(([key, value]) => (
           <div key={key}>
@@ -268,8 +277,8 @@ export default function PitchPage() {
               )}
               {SHOWCASE && (
                 <p className="mt-3 text-xs leading-relaxed text-faint">
-                  Drafts are written on the working desk and stay there. This copy shows the notes and the facts
-                  only.
+                  This copy has no Claude, so Write the post gives the plain version built from the facts. On
+                  the working desk Claude writes it, and those drafts stay there.
                 </p>
               )}
               {pickable && <Pick repos={pickable.repos} onChanged={changed} />}
@@ -279,7 +288,7 @@ export default function PitchPage() {
               <ul className="flex flex-col gap-4">
                 {notes.map((note) => (
                   <NoteCard key={note.id} note={note}>
-                    {mine && (
+                    {mine ? (
                       <PostArea
                         note={note}
                         post={note.thread ? posts.get(note.thread) : undefined}
@@ -288,6 +297,8 @@ export default function PitchPage() {
                         rechecks={mine.claude_rechecks === true}
                         onChanged={changed}
                       />
+                    ) : (
+                      SHOWCASE && <PlainPost note={note} />
                     )}
                   </NoteCard>
                 ))}
@@ -299,17 +310,24 @@ export default function PitchPage() {
               </p>
             )}
 
-            {!SHOWCASE && (
-              <>
-                <Tone sheet={sheet} onChanged={changed} />
-                <Lessons
-                  agent="pitch"
-                  copy={LESSON_COPY}
-                  lessons={sheet.lessons ?? []}
-                  limit={sheet.lesson_limit ?? 12}
-                  onChanged={changed}
-                />
-              </>
+            <Tone sheet={sheet} onChanged={changed} />
+            {SHOWCASE ? (
+              <section className="panel flex flex-col gap-3 p-6" aria-label="Lessons">
+                <h2 className="font-display text-xl font-semibold tracking-tight">What Pitch has learned</h2>
+                <p className="text-sm leading-relaxed text-muted">
+                  On the working desk, an edit made before posting, or a reason given for passing on a draft,
+                  becomes one short rule that goes to Claude with every later draft. A rule can repeat what a
+                  draft said, so the rules stay on the desk and are not shown here.
+                </p>
+              </section>
+            ) : (
+              <Lessons
+                agent="pitch"
+                copy={LESSON_COPY}
+                lessons={sheet.lessons ?? []}
+                limit={sheet.lesson_limit ?? 12}
+                onChanged={changed}
+              />
             )}
           </section>
         </div>
