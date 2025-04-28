@@ -98,6 +98,8 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
     events = [e for e in events if not _private(e)]
     notes = routes["/api/handoffs"]
     notes["handoffs"] = [note for note in notes["handoffs"] if note["from"] != YOU]
+    # Any public project can be picked on the site and written about by rules, from public facts.
+    routes["/api/pitch/repos"] = {"repos": app.state.pitch.pickable(public=True)}
     reading = app.state.pitch.public_status()
     routes["/api/agents/pitch"] |= {"lessons": [], "tone": None, "status": reading}
 
@@ -177,14 +179,20 @@ def digest(snapshot: dict[str, Any]) -> str:
     lessons = [(lesson["text"], lesson["active"]) for lesson in routes["/api/agents/patch"]["lessons"]]
     # A note for Pitch, whether Pitch finds enough in it for a post, and the plain post the site offers.
     handoffs = [
-        (handoff["text"], handoff["brief"]["ready"], handoff["brief"]["plain_post"])
+        (handoff["text"], handoff["brief"]["ready"], handoff["brief"]["plain_posts"])
         for handoff in routes["/api/handoffs"]["handoffs"]
+    ]
+    # The other projects a visitor can pick, and the posts rules write for them.
+    picks = [
+        (pick["repo"], pick["ready"], pick["brief"]["plain_posts"]) for pick in routes["/api/pitch/repos"]["repos"]
     ]
     mood = routes["/api/agents/patch"]["mood"]  # the face Patch wears: it follows the portfolio score
     # What Pitch says it does and never does. It changes only when the code does, and then the
     # site should say so without waiting for a repository to change.
     pitch = (routes["/api/agents/pitch"]["does"], routes["/api/agents/pitch"]["never"])
-    substance = json.dumps([repos, findings, proposals, lessons, handoffs, mood, pitch], sort_keys=True, default=str)
+    substance = json.dumps(
+        [repos, findings, proposals, lessons, handoffs, mood, pitch, picks], sort_keys=True, default=str
+    )
     return hashlib.sha256(substance.encode()).hexdigest()[:16]
 
 
