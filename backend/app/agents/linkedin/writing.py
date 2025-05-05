@@ -191,7 +191,12 @@ def _opening(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> s
 
 
 def _summary(facts: Mapping[str, Any]) -> str | None:
-    return facts.get("description") or facts.get("intro")
+    """What it is, as a sentence. A repository description rarely ends with a full stop."""
+    text = (facts.get("description") or facts.get("intro") or "").strip()
+    if not text:
+        return None
+    ends_in_link = text.split()[-1].startswith(("http://", "https://"))
+    return f"{text}." if text[-1].isalnum() and not ends_in_link else text
 
 
 def _license(facts: Mapping[str, Any]) -> str | None:
