@@ -8,18 +8,18 @@ const KEY = "desk-theme";
 export function ThemeToggle() {
   // React's dev Strict Mode remount clears the attribute the inline script set; re-apply it.
   useLayoutEffect(() => {
+    let stored: string | null = null;
     try {
-      const stored = localStorage.getItem(KEY);
-      if (stored === "light" || stored === "dark") document.documentElement.setAttribute("data-theme", stored);
+      stored = localStorage.getItem(KEY);
     } catch {
-      /* storage unavailable: keep the system theme */
+      /* storage unavailable: use light */
     }
+    document.documentElement.setAttribute("data-theme", stored === "dark" ? "dark" : "light");
   }, []);
 
   function toggle() {
     const root = document.documentElement;
-    const system = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-    const next = (root.getAttribute("data-theme") ?? system) === "light" ? "dark" : "light";
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
     try {
       localStorage.setItem(KEY, next);

@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   description: "Watch Patch manage your GitHub: every step, every request, every proposal.",
 };
 
-// Runs while the HTML is parsed, so a saved theme applies before the first paint.
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem("desk-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+// Runs while the HTML is parsed, so the theme applies before the first paint: the saved choice, otherwise light.
+const THEME_SCRIPT = `(function(){var t;try{t=localStorage.getItem("desk-theme")}catch(e){}document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light")})()`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
