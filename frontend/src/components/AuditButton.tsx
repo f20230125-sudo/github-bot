@@ -4,6 +4,7 @@ import { PenLine, RefreshCw, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { startAudit, startDraft } from "@/lib/api";
 import { agentView } from "@/lib/feed";
+import { SHOWCASE } from "@/lib/showcase";
 import { useStream } from "./StreamProvider";
 import { Button, InlineError } from "./ui";
 
@@ -21,6 +22,7 @@ function JobButton({ label, Icon, start, variant = "ghost" }: Props) {
   const [error, setError] = useState<string | null>(null);
   const working = agentView(events, "patch").status === "working";
   const paused = desk?.paused ?? false;
+  if (SHOWCASE) return null; // the view-only copy has nothing to start
 
   async function onClick() {
     setPending(true);

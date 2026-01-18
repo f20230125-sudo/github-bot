@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { fetchPolicy, updatePolicy } from "@/lib/api";
+import { SHOWCASE } from "@/lib/showcase";
 import type { Policy, PolicyMode } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { InlineError } from "./ui";
@@ -47,12 +48,13 @@ export function SafetyPanel() {
   const [version, setVersion] = useState(0);
   const { data, error } = useApi(`policy:${version}`, fetchPolicy);
   const [saved, setSaved] = useState<Policy | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const policy = saved ?? data;
+  const busy = saving || SHOWCASE; // the view-only copy shows the switches but can't move them
 
   async function change(changes: Parameters<typeof updatePolicy>[0]) {
-    setBusy(true);
+    setSaving(true);
     setSaveError(null);
     try {
       setSaved(await updatePolicy(changes));
@@ -60,7 +62,7 @@ export function SafetyPanel() {
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Couldn't save that.");
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }
 
