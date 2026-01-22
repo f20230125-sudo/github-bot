@@ -10,6 +10,9 @@ Everything runs on your own machine. Patch's writing is done by Claude through t
 program you are already signed in to, so it uses your Claude plan. There is no API key and nothing
 here can charge you.
 
+**Live demo: https://github-bot-wine.vercel.app** (view-only: it replays a recording of a real
+audit, and nothing on it can change anything)
+
 ![The Floor: a chat answer from stored data, a drafting run, and eight proposals waiting for approval](docs/screenshots/floor.png)
 
 The Floor after an audit of 12 real repositories. Claude was switched off for this run, so the
