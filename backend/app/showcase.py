@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -82,7 +83,58 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
     desk["current"] = None
     routes["/api/agents/patch"] = _without_clock(routes["/api/agents/patch"])
     routes["/api/chat?limit=30"]["busy"] = False
-    return {"exported_at": utcnow(), "events": events, "routes": routes}
+    return {"exported_at": utcnow(), "events": _latest_work(events), "routes": routes}
+
+
+def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The events the site replays: from the most recent audit that looked at a repository, onward.
+
+    Older runs stay reachable through their own pages. Replaying all of them on every visit would
+    bury the newest one.
+    """
+    audits = [e["run_id"] for e in events if e["type"] == "run.started" and e["payload"].get("job") == "audit"]
+    looked = {e["run_id"] for e in events if e["type"] == "run.step" and e["payload"].get("step") == "repo"}
+    recent = [run_id for run_id in audits if run_id in looked] or audits
+    if not recent:
+        return events
+    start = next(i for i, e in enumerate(events) if e["run_id"] == recent[-1])
+    # Keep the "working" status that was published just before the run began.
+    if start > 0 and events[start - 1]["type"] == "agent.status":
+        start -= 1
+    return events[start:]
+
+
+def digest(snapshot: dict[str, Any]) -> str:
+    """A fingerprint of what the site shows that is worth a new deployment: scores, findings,
+    proposals, lessons and notes for Pitch. Clock times, request counts and star counts don't count,
+    so a check that changes none of these leaves the published file alone."""
+    routes = snapshot["routes"]
+    repos = [
+        (repo["full_name"], repo["kind"], repo["score"], repo["counts"], repo["description"], repo["topics"],
+         repo["homepage"], repo["license"], repo["ci_state"])
+        for repo in routes["/api/repos"]["repos"]
+    ]  # fmt: skip
+    findings = {
+        path: sorted((f["check"], f["severity"], f["title"]) for f in answer["findings"])
+        for path, answer in routes.items()
+        if path.startswith("/api/repos/")
+    }
+    # Only what is waiting, and only what it would change: a redraft with the same content is not news.
+    proposals = sorted(
+        (
+            answer["kind"],
+            answer["repo"] or "",
+            answer["title"],
+            [(f["path"], f["content"], f["enabled"]) for f in answer["payload"].get("files", [])],
+            [(i["repo"], i["description"], i["topics"], i["enabled"]) for i in answer["payload"].get("items", [])],
+        )
+        for path, answer in routes.items()
+        if path.startswith("/api/proposals/") and answer["status"] == "pending"
+    )
+    lessons = [(lesson["text"], lesson["active"]) for lesson in routes["/api/agents/patch"]["lessons"]]
+    handoffs = [handoff["text"] for handoff in routes["/api/handoffs"]["handoffs"]]
+    substance = json.dumps([repos, findings, proposals, lessons, handoffs], sort_keys=True, default=str)
+    return hashlib.sha256(substance.encode()).hexdigest()[:16]
 
 
 def summary(snapshot: dict[str, Any]) -> list[str]:
@@ -108,6 +160,7 @@ def main() -> None:
 
     app = create_app(get_settings())
     snapshot = asyncio.run(export_snapshot(app))
+    snapshot["digest"] = digest(snapshot)
     app.state.db.close()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
