@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ago, shortDate } from "@/lib/format";
 import {
   CHECK_EVERY,
+  CHECKED_EVENT,
   fetchScheduledCheck,
   loadSnapshot,
   REPO_URL,
@@ -27,6 +28,10 @@ export function ShowcaseBanner() {
       .then((snapshot) => setTaken(snapshot.exported_at))
       .catch(() => undefined);
     fetchScheduledCheck().then(setCheck);
+    // A check started from this page has finished: ask again.
+    const refresh = () => void fetchScheduledCheck().then(setCheck);
+    window.addEventListener(CHECKED_EVENT, refresh);
+    return () => window.removeEventListener(CHECKED_EVENT, refresh);
   }, []);
 
   if (!SHOWCASE) return null;
@@ -48,7 +53,7 @@ export function ShowcaseBanner() {
         // still says when a check last found something to change.
         taken && `It last found a change ${now !== null ? ago(taken, now) : `on ${shortDate(taken)}`}. `
       )}
-      Nothing on this site changes anything.{" "}
+      Nothing here can change a repository.{" "}
       <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={link}>
         See the code
       </a>
