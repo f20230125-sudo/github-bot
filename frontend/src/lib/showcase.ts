@@ -44,19 +44,52 @@ async function newest(version?: string): Promise<Snapshot | null> {
   return fromGitHub?.routes ? fromGitHub : null;
 }
 
+const SEEN_KEY = "desk-snapshot-seen";
+
+/** When the newest snapshot this browser has shown was written, or "" if it has shown none. */
+function seen(): string {
+  try {
+    return localStorage.getItem(SEEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function remember(snapshot: Snapshot): void {
+  try {
+    localStorage.setItem(SEEN_KEY, snapshot.exported_at);
+  } catch {
+    /* without storage, a page can briefly show the copy from before a check */
+  }
+}
+
 export function loadSnapshot(): Promise<Snapshot> {
   loading ??= (async () => {
-    const snapshot = (await newest()) ?? (await read("/showcase/snapshot.json"));
+    let snapshot = await newest();
+    // The site's server shares one answer between visitors for some seconds, and GitHub's file
+    // cache keeps one for minutes. Either can hand over the copy from before a check whose result
+    // this browser has already shown. Then ask again, at an address no cache has an older copy of.
+    const known = seen();
+    if (snapshot && known && Date.parse(snapshot.exported_at) < Date.parse(known)) {
+      snapshot = (await newest(known)) ?? snapshot;
+    }
+    snapshot ??= await read("/showcase/snapshot.json");
     if (!snapshot) throw new Error("The snapshot is missing.");
+    remember(snapshot);
     return snapshot;
   })();
   return loading;
 }
 
-/** After a check: whether the repository now holds a different snapshot from the one on screen. */
+/**
+ * After a check: whether the repository now holds a different snapshot from the one on screen.
+ * If it does, the next page load in this browser will not settle for an older copy.
+ */
 export async function snapshotChanged(version: string): Promise<boolean> {
   const [shown, latest] = await Promise.all([loadSnapshot(), newest(version)]);
-  return latest !== null && (latest.digest ?? latest.exported_at) !== (shown.digest ?? shown.exported_at);
+  if (latest === null || (latest.digest ?? latest.exported_at) === (shown.digest ?? shown.exported_at)) return false;
+  remember(latest);
+  return true;
 }
 
 /**
