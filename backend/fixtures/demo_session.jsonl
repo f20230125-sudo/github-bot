@@ -1,4 +1,4 @@
-{"delay": 0.3, "agent": "patch", "type": "agent.status", "payload": {"mood": "focused", "status": "working", "text": "Auditing your repositories."}}
+{"delay": 0.3, "agent": "patch", "type": "agent.status", "payload": {"mood": "normal", "status": "working", "text": "Auditing your repositories."}}
 {"delay": 0.3, "agent": "patch", "type": "run.started", "run_id": "demo-audit", "payload": {"job": "audit", "title": "Audit repositories"}}
 {"delay": 0.55, "agent": "patch", "type": "run.step", "run_id": "demo-audit", "payload": {"step": "sync", "text": "Asking GitHub what changed."}}
 {"delay": 0.12, "agent": "patch", "type": "tool.result", "run_id": "demo-audit", "payload": {"kind": "github", "method": "GET", "ms": 432, "not_modified": false, "path": "/users/f20230125-sudo/repos?per_page=100&sort=full_name&type=owner", "remaining": 37, "status": 200}}
@@ -84,4 +84,4 @@
 {"delay": 0.55, "agent": "patch", "type": "run.step", "run_id": "demo-audit", "payload": {"score": 77, "step": "summary", "text": "36 findings across 11 repositories. Portfolio score 77."}}
 {"delay": 0.2, "agent": "patch", "type": "usage", "run_id": "demo-audit", "payload": {"calls_avoided": 12, "github_requests": 28, "repos_checked": 12}}
 {"delay": 0.4, "agent": "patch", "type": "run.finished", "run_id": "demo-audit", "payload": {"ok": true, "text": "Audit done. 28 GitHub requests, 0 model calls."}}
-{"delay": 0.3, "agent": "patch", "type": "agent.status", "payload": {"mood": "focused", "status": "idle", "text": "Idle. Nothing to do."}}
+{"delay": 0.3, "agent": "patch", "type": "agent.status", "payload": {"mood": "normal", "status": "idle", "text": "Idle. Nothing to do."}}
