@@ -9,46 +9,40 @@ import { AuditButton, DraftButton } from "@/components/AuditButton";
 import { Chat } from "@/components/Chat";
 import { CheckNow } from "@/components/CheckNow";
 import { Feed } from "@/components/Feed";
+import { NoteLine } from "@/components/Notes";
 import { useStream } from "@/components/StreamProvider";
-import { Button, InlineError, Notice, StatRow, Tag } from "@/components/ui";
+import { Button, InlineError, Notice, StatRow } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
 import { API_URL, ApiError, fetchHandoffs, fetchHealth, fetchMetrics, playDemo } from "@/lib/api";
 import { agentView, buildFeed, lastFinishedRun, lastMessage } from "@/lib/feed";
-import { shortDate, shortRepo } from "@/lib/format";
 import type { Handoff } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
-const TOPIC_LABEL: Record<string, string> = {
-  new_repo: "New repository",
-  release: "Release",
-  demo_link: "Live link",
-  stars: "Stars",
-  ready: "Presentable",
-};
+/** What Pitch's card says before Pitch has said anything itself. */
+const PITCH_QUIET = "Nothing worth a post yet.";
 
-/** What Patch has left for the LinkedIn agent. Nobody answers yet, and nothing pretends to. */
-function PitchTray({ handoffs }: { handoffs: Handoff[] }) {
+/** The notes Patch has left for Pitch, each with Pitch's verdict once it has read them. */
+function PitchTray({ handoffs, hired }: { handoffs: Handoff[]; hired: boolean }) {
   return (
-    <section className="panel p-5" aria-label="Waiting for Pitch">
-      <h2 className="eyebrow">Waiting for Pitch</h2>
+    <section className="panel p-5" aria-label="Notes for Pitch">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="eyebrow">Notes for Pitch</h2>
+        {hired && (
+          <Link href="/agents/pitch" className="shrink-0 text-xs text-muted underline underline-offset-4 hover:text-fg">
+            All notes
+          </Link>
+        )}
+      </div>
       {handoffs.length ? (
-        <ul className="mt-3 flex flex-col gap-3">
+        <ul className="mt-3 flex flex-col gap-4">
           {handoffs.map((handoff) => (
-            <li key={handoff.id} className="text-sm leading-relaxed">
-              <p className="flex flex-wrap items-center gap-2">
-                <Tag>{TOPIC_LABEL[handoff.topic] ?? handoff.topic}</Tag>
-                {handoff.repo && <span className="font-mono text-xs">{shortRepo(handoff.repo)}</span>}
-                <time className="text-xs text-faint" dateTime={handoff.ts}>
-                  {shortDate(handoff.ts)}
-                </time>
-              </p>
-              <p className="mt-1 text-muted">{handoff.text}</p>
-            </li>
+            <NoteLine key={handoff.id} note={handoff} />
           ))}
         </ul>
       ) : (
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          Nothing yet. When a repository gets a release, a live link or a star milestone, Patch leaves a note here.
+          Nothing yet. When a repository gets a release, a live link or a star milestone, or becomes presentable,
+          Patch leaves a note here{hired ? " and Pitch says whether it is enough for a post" : ""}.
         </p>
       )}
     </section>
@@ -62,17 +56,25 @@ export default function FloorPage() {
 
   // Re-read the API's state whenever the connection comes back or a run finishes.
   const { data: health } = useApi(`health:${status}:${lastFinishedRun(events)}`, fetchHealth);
-  const { data: tray } = useApi(`handoffs:${status}:${lastMessage(events, "handoff")}`, fetchHandoffs);
+  // Pitch's verdict on a note can change whenever a run changes what the note is about.
+  const { data: tray } = useApi(
+    `handoffs:${status}:${lastMessage(events, "handoff")}:${lastFinishedRun(events)}`,
+    fetchHandoffs,
+  );
 
   const feed = useMemo(() => buildFeed(events), [events]);
-  const patch = agentView(events, "patch");
   const showingDemo = events.some((e) => e.payload.demo === true);
   const paused = desk?.paused ?? false;
   const card = desk?.agents.find((agent) => agent.id === "patch");
+  const patch = agentView(events, "patch", card?.status);
   const watch = card?.watch;
   // The face follows the health of the repositories as it is now, which the desk works out afresh.
   // The mood in a stored status line is the one Patch had when it said that line.
   const mood = card?.mood ?? patch.mood;
+  // Pitch has a seat on every desk, and sits in it once the desk it runs on knows about it.
+  const pitchCard = desk?.agents.find((agent) => agent.id === "pitch");
+  const pitchHired = pitchCard?.hired === true;
+  const pitch = agentView(events, "pitch", pitchCard?.status ?? { status: "idle", text: PITCH_QUIET, mood: "normal" });
   // The day's totals move when a run finishes and when a quiet check goes by.
   const { data: metrics } = useApi(
     `today:${status}:${lastFinishedRun(events)}:${watch?.last?.at ?? ""}`,
@@ -147,15 +149,26 @@ export default function FloorPage() {
             watch={watch}
             paused={paused}
           />
-          <AgentCard
-            name={pitchMeta.name}
-            role={pitchMeta.role}
-            color={pitchMeta.color}
-            status="idle"
-            text="Seat reserved. The LinkedIn agent joins the desk in the next round."
-            mood="normal"
-            reserved
-          />
+          {pitchHired ? (
+            <AgentCard
+              name={pitchMeta.name}
+              role={pitchMeta.role}
+              color={pitchMeta.color}
+              status={pitch.status}
+              text={pitch.text}
+              mood={pitchCard?.mood ?? pitch.mood}
+            />
+          ) : (
+            <AgentCard
+              name={pitchMeta.name}
+              role={pitchMeta.role}
+              color={pitchMeta.color}
+              status="idle"
+              text="Seat reserved. The LinkedIn agent joins the desk in the next round."
+              mood="normal"
+              reserved
+            />
+          )}
 
           <section className="panel p-5" aria-label="Today">
             <div className="flex items-baseline justify-between gap-3">
@@ -187,7 +200,7 @@ export default function FloorPage() {
             </p>
           </section>
 
-          <PitchTray handoffs={tray?.handoffs ?? []} />
+          <PitchTray handoffs={tray?.handoffs ?? []} hired={pitchHired} />
         </aside>
 
         <section aria-label="Live feed" className="flex min-w-0 flex-col gap-4">

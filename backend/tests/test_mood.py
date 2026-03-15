@@ -1,9 +1,9 @@
-"""Patch's mood follows the portfolio score, and nothing else."""
+"""An agent's mood follows the portfolio score, and nothing else."""
 
 import pytest
 
-from app.agents.github.mood import MOODS, compute_mood
 from app.agents.github.store import portfolio_summary
+from app.core.mood import MOODS, compute_mood
 from tests.fake_github import FakeRepo, healthy_files
 from tests.test_audit import agent_for
 

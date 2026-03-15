@@ -22,6 +22,7 @@ const NAV = [
   { href: "/repos", label: "Repos" },
   { href: "/metrics", label: "Metrics", also: "/runs" },
   { href: "/agents/patch", label: "Patch" },
+  { href: "/agents/pitch", label: "Pitch" },
   { href: "/setup", label: "Setup" },
 ];
 

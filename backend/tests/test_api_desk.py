@@ -59,7 +59,7 @@ async def say(client, app, text):
 # -- who works here ---------------------------------------------------------------------------
 
 
-async def test_agents_lists_patch_and_the_empty_seat(client, app):
+async def test_agents_lists_patch_and_pitch(client, app):
     body = (await client.get("/api/agents")).json()
     patch, pitch = body["agents"]
 
@@ -68,7 +68,10 @@ async def test_agents_lists_patch_and_the_empty_seat(client, app):
     assert patch["status"] is None and patch["mood"] == "normal"  # nothing audited yet
     # No token, so checks are half an hour apart. The clock only runs when the server does.
     assert patch["watch"] == {"enabled": True, "interval": 1800.0, "next_at": None, "last": None}
-    assert pitch == {"id": "pitch", "name": "Pitch", "role": "LinkedIn writer", "hired": False}
+    # Pitch has said nothing yet: there has been no note to read.
+    assert pitch == {
+        "id": "pitch", "name": "Pitch", "role": "LinkedIn writer", "hired": True, "mood": "normal", "status": None,
+    }  # fmt: skip
 
     await audit(client, app)
     patch = (await client.get("/api/agents")).json()["agents"][0]
