@@ -26,6 +26,7 @@ from ...core.runs import run
 from ...core.text import count
 from ...db import Database
 from ...events import Event, NewEvent
+from . import PICK, YOU
 from .brief import ANGLE_LABELS, Brief, build_brief
 from .learning import drafted_text, feedback_of
 from .posts import Post, PostStore
@@ -59,6 +60,8 @@ class Source(Protocol):
     id: str
 
     def facts(self, full_name: str) -> dict[str, Any] | None: ...
+
+    def projects(self) -> list[str]: ...
 
     def readme(self, full_name: str) -> str | None: ...
 
@@ -192,6 +195,39 @@ class PitchAgent:
             )  # fmt: skip
         return out
 
+    # -- a note of your own -------------------------------------------------------------------
+
+    def pickable(self) -> list[dict[str, Any]]:
+        """Your public projects that have no note yet, each with whether there is enough for a post.
+        Those with enough come first."""
+        noted = {note.repo for note in self._handoffs()}
+        out = []
+        for full_name in self.source.projects():
+            if full_name in noted:
+                continue
+            facts = self.source.facts(full_name) or {}
+            brief = build_brief(PICK, {}, facts or None)
+            reasons = self._reasons(brief, facts)
+            out.append(
+                {"repo": full_name, "name": facts.get("name") or full_name, "ready": brief.ready,
+                 "reason": reasons[0] if reasons else None}
+            )  # fmt: skip
+        return sorted(out, key=lambda item: (not item["ready"], item["name"].lower()))
+
+    async def pick(self, full_name: str) -> Event:
+        """You want a post about a repository Patch has not left a note for. This leaves the note
+        yourself. Pitch then reads it like any other, and says whether there is enough."""
+        facts = self.source.facts(full_name)
+        if facts is None or full_name not in self.source.projects():
+            raise PostError("Patch has not audited a public project by that name.", 404)
+        if any(note.repo == full_name for note in self._handoffs()):
+            raise PostError("There is already a note about that repository.")
+        payload = {
+            "kind": "handoff", "from": YOU, "to": self.id, "topic": PICK, "thread": f"{PICK}:{full_name}",
+            "text": self.persona.line("pick.asked", name=facts["name"]), "data": {"name": facts["name"]},
+        }  # fmt: skip
+        return await self.bus.publish(NewEvent(agent=self.id, type="message", repo=full_name, payload=payload))
+
     # -- status -------------------------------------------------------------------------------
 
     async def status(self, status: str, text: str) -> None:
@@ -206,7 +242,9 @@ class PitchAgent:
         or nothing. `with_posts=False` leaves the drafts out, as if Pitch had only ever read."""
         say = self.persona.line
         notes = self._handoffs()
-        if with_posts:
+        if not with_posts:
+            notes = [note for note in notes if note.payload.get("from") != YOU]  # your own picks are yours
+        else:
             drafts = len(self.posts.list("draft"))
             if drafts:
                 return "waiting", say("status.drafts", drafts_text=count(drafts, "draft"))
@@ -271,7 +309,9 @@ class PitchAgent:
                     await ctx.emit(
                         "message",
                         {
-                            "kind": "answer", "from": self.id, "to": self.source.id, "thread": thread,
+                            # The answer goes to whoever left the note: Patch, or you.
+                            "kind": "answer", "from": self.id, "to": note.payload.get("from") or self.source.id,
+                            "thread": thread,
                             "topic": note.payload.get("topic"), "note": note.id, "ready": brief.ready, "text": text,
                         },
                         repo=note.repo,

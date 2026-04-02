@@ -22,7 +22,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI
 
-from .agents.linkedin import PITCH
+from .agents.linkedin import PICK, PITCH, YOU
 from .config import BACKEND_DIR, get_settings
 from .events import utcnow
 from .main import create_app
@@ -87,13 +87,17 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
         for run in runs["runs"]:
             path = f"/api/runs/{run['run_id']}"
             routes[path] = await get(path)
+            routes[path]["events"] = [e for e in routes[path]["events"] if not _private(e)]
         events = (await get(f"/api/events?limit={MAX_EVENTS}"))["events"]
 
     # Pitch's drafts never leave the desk. Nor does anything that came of them: the runs that
     # wrote them, the rules learned from them (a rule can repeat what a draft said), the tone
     # you chose, or a status line saying a draft is waiting. The posts themselves are not among
-    # the pages asked for at all. What stays is Pitch reading Patch's notes.
-    events = [e for e in events if not _private_run(e["agent"], e["run_id"])]
+    # the pages asked for at all. A note you left yourself, and Pitch's answer to it, say what
+    # you mean to post about: that is yours to announce. What stays is Pitch reading Patch's notes.
+    events = [e for e in events if not _private(e)]
+    notes = routes["/api/handoffs"]
+    notes["handoffs"] = [note for note in notes["handoffs"] if note["from"] != YOU]
     reading = app.state.pitch.public_status()
     routes["/api/agents/pitch"] |= {"lessons": [], "tone": None, "status": reading}
 
@@ -109,8 +113,15 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
 
 
 def _private_run(agent: str, run_id: str | None) -> bool:
-    """Whether an event or a run is Pitch's and about anything other than reading Patch's notes."""
+    """Whether an event or a run is Pitch's and about anything other than reading notes."""
     return agent == PITCH.id and not (run_id or "").startswith("read-")
+
+
+def _private(event: dict[str, Any]) -> bool:
+    """Whether an event stays on the desk: Pitch's writing and learning, and anything about a
+    note you left yourself."""
+    yours = str(event["payload"].get("thread") or "").startswith(f"{PICK}:")
+    return yours or _private_run(event["agent"], event["run_id"])
 
 
 def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
