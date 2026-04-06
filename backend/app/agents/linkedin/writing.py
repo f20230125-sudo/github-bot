@@ -308,7 +308,7 @@ async def run_write(agent: PitchAgent, note_id: int, force: bool = False) -> Pos
             hooks: list[str] = []
             notes: list[str] = []
             line: str | None = None
-            off = await agent.claude.unavailable_reason()
+            off = await agent.claude.unavailable_reason(refresh=True)
             if off is None:
                 try:
                     drafts = await agent.claude.ask_structured(

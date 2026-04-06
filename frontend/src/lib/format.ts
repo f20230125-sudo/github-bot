@@ -29,6 +29,17 @@ export function until(epochSeconds: number, now: number): string {
   return `in about ${Math.round(seconds / 3600)} h`;
 }
 
+/**
+ * When a usage limit resets, given in seconds since the epoch: "at 21:20" if that is today,
+ * else "on 11 Oct at 16:00". Only used on data that arrives after the page is live.
+ */
+export function resetTime(epochSeconds: number): string {
+  const moment = new Date(epochSeconds * 1000);
+  const time = moment.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  if (moment.toDateString() === new Date().toDateString()) return `at ${time}`;
+  return `on ${moment.toLocaleDateString([], { day: "numeric", month: "short" })} at ${time}`;
+}
+
 /** "f20230125-sudo/Quant-Trading-copilot" -> "Quant-Trading-copilot" */
 export function shortRepo(fullName: string): string {
   return fullName.split("/").pop() ?? fullName;

@@ -283,6 +283,7 @@ export default function PitchPage() {
                         post={note.thread ? posts.get(note.thread) : undefined}
                         writing={mine.writing.includes(note.id)}
                         claudeOff={mine.claude_off}
+                        rechecks={mine.claude_rechecks === true}
                         onChanged={changed}
                       />
                     )}
