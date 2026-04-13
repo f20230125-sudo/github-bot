@@ -9,7 +9,7 @@ import { PostArea } from "@/components/PostEditor";
 import { useStream } from "@/components/StreamProvider";
 import { Button, InlineError, Notice } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
-import { fetchNotes, fetchPickable, fetchPitch, fetchPosts, pickRepo, setTone } from "@/lib/api";
+import { fetchNotes, fetchPickable, fetchPitch, fetchPosts, pickRepo, setTone, writePost } from "@/lib/api";
 import { agentView, lastFinishedRun, lastOfType } from "@/lib/feed";
 import { plural } from "@/lib/format";
 import { SHOWCASE } from "@/lib/showcase";
@@ -53,7 +53,9 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
     setBusy(true);
     setError(null);
     try {
-      await pickRepo(repo);
+      // One press does both: leave the note, and if there is enough for a post, ask for the draft.
+      const note = await pickRepo(repo);
+      if (chosen?.ready) await writePost(note.id);
       setRepo("");
       onChanged();
     } catch (e) {
@@ -66,7 +68,7 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
   return (
     <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
       <label htmlFor="pick-repo" className="text-sm leading-relaxed text-muted">
-        Want a post about something Patch has not flagged? Pick a repository.
+        Want a post about something Patch has not flagged? Pick a repository, then press the button.
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <select
@@ -83,8 +85,8 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
             </option>
           ))}
         </select>
-        <Button type="submit" disabled={busy || !repo}>
-          Add a note
+        <Button type="submit" variant={repo ? "primary" : "ghost"} disabled={busy || !repo}>
+          {busy ? "Starting" : chosen && !chosen.ready ? "Add a note" : "Write the post"}
         </Button>
       </div>
       {chosen && !chosen.ready && chosen.reason && (
