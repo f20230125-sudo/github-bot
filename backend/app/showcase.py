@@ -175,8 +175,11 @@ def digest(snapshot: dict[str, Any]) -> str:
         if path.startswith("/api/proposals/") and answer["status"] == "pending"
     )
     lessons = [(lesson["text"], lesson["active"]) for lesson in routes["/api/agents/patch"]["lessons"]]
-    # A note for Pitch, and whether Pitch finds enough in it for a post.
-    handoffs = [(handoff["text"], handoff["brief"]["ready"]) for handoff in routes["/api/handoffs"]["handoffs"]]
+    # A note for Pitch, whether Pitch finds enough in it for a post, and the plain post the site offers.
+    handoffs = [
+        (handoff["text"], handoff["brief"]["ready"], handoff["brief"]["plain_post"])
+        for handoff in routes["/api/handoffs"]["handoffs"]
+    ]
     mood = routes["/api/agents/patch"]["mood"]  # the face Patch wears: it follows the portfolio score
     # What Pitch says it does and never does. It changes only when the code does, and then the
     # site should say so without waiting for a repository to change.

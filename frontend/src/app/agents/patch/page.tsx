@@ -4,6 +4,7 @@ import { Ban, Check } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
+import { ClaudeAbout } from "@/components/ClaudeAbout";
 import { ClaudePanel } from "@/components/ClaudePanel";
 import { Face } from "@/components/Face";
 import { Lessons } from "@/components/Lessons";
@@ -149,23 +150,7 @@ export default function PatchPage() {
               )}
             </section>
 
-            {SHOWCASE ? (
-              <section className="panel flex flex-col gap-3 p-6" aria-label="Claude">
-                <h2 className="font-display text-xl font-semibold tracking-tight">Claude</h2>
-                <p className="text-sm leading-relaxed text-muted">
-                  On the working desk, Patch calls the Claude Code program signed in on its owner&apos;s computer, so
-                  it uses that Claude plan and never an API key. It stops calling Claude once plan usage reaches 40%
-                  of the 5-hour or the weekly limit, and it does not call at all when it cannot read the usage.
-                </p>
-                <p className="text-sm leading-relaxed text-muted">
-                  The scheduled check that keeps this site up to date never calls Claude. It uses rules and
-                  templates only, so what it suggests is limited to what those can write: licenses, .gitignore
-                  files and CI workflows.
-                </p>
-              </section>
-            ) : (
-              <ClaudePanel />
-            )}
+            {SHOWCASE ? <ClaudeAbout /> : <ClaudePanel />}
           </div>
         </div>
       )}

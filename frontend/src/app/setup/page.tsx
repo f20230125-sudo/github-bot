@@ -3,6 +3,7 @@
 import { ArrowUpRight, Check } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { AuditButton } from "@/components/AuditButton";
+import { ClaudeAbout } from "@/components/ClaudeAbout";
 import { ClaudePanel } from "@/components/ClaudePanel";
 import { SafetyPanel } from "@/components/SafetyPanel";
 import { Button, Dot, InlineError, Notice } from "@/components/ui";
@@ -30,6 +31,35 @@ const TIERS = [
     can: "Set descriptions, website links and topics",
   },
 ];
+
+/** What each level of token permission lets Patch do. */
+function Tiers() {
+  return (
+    <div className="mt-6 overflow-x-auto">
+      <table className="w-full min-w-[560px] text-left text-sm">
+        <thead>
+          <tr className="border-b border-line text-xs text-faint">
+            <th className="py-3 pr-4 font-normal">Tier</th>
+            <th className="py-3 pr-4 font-normal">Repository permissions</th>
+            <th className="py-3 font-normal">Patch can</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line align-top">
+          {TIERS.map((tier) => (
+            <tr key={tier.name}>
+              <td className="py-3 pr-4">
+                <p className="font-medium">{tier.name}</p>
+                <p className="text-xs text-faint">{tier.when}</p>
+              </td>
+              <td className="py-3 pr-4 text-muted">{tier.permissions}</td>
+              <td className="py-3 text-muted">{tier.can}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function SetupPage() {
   const [version, setVersion] = useState(0);
@@ -73,17 +103,50 @@ export default function SetupPage() {
   const github = data?.github;
 
   if (SHOWCASE) {
+    // The view-only copy has nothing to connect. It shows how the working desk is set up instead.
     return (
       <div className="flex max-w-3xl flex-col gap-8">
         <div>
           <p className="eyebrow">Setup</p>
-          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Nothing to set up here.</h1>
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Connections and limits.
+          </h1>
         </div>
         <Notice>
-          This is a view-only copy. On the working desk, this page holds the GitHub token, the Claude connection
-          test and the safety switches. The switches are shown below as they were when the recording was taken.
+          View-only. On the working desk, this page holds the safety switches, the Claude connection test and the
+          GitHub token. Here they are shown as they stand, and nothing can be changed.
         </Notice>
+
         <SafetyPanel />
+        <ClaudeAbout />
+
+        <h2 className="eyebrow -mb-4">GitHub</h2>
+        {github && (
+          <section className="panel flex items-start gap-3 p-6" aria-label="Connection">
+            <Dot status="neutral" className="mt-2" />
+            <div>
+              <p className="font-medium">Reading {github.user}&apos;s public repositories</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">
+                This copy holds no token of its owner&apos;s. The scheduled check reads public data with the
+                short-lived token GitHub gives every job, and it cannot change a repository.
+              </p>
+            </div>
+          </section>
+        )}
+        <section aria-label="What a token would allow">
+          <div className="panel p-6">
+            <h2 className="font-display text-xl font-semibold tracking-tight">What a token allows on the working desk</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              The owner can give Patch a fine-grained token, starting with read-only access. It is kept in a file
+              on the owner&apos;s machine, never sent to a browser and never sent to Claude.
+            </p>
+            <Tiers />
+            <p className="mt-5 text-sm leading-relaxed text-muted">
+              Whatever the token allows, nothing is written without the owner&apos;s approval, and dry-run rehearses
+              a change instead of making it.
+            </p>
+          </div>
+        </section>
       </div>
     );
   }
@@ -189,29 +252,7 @@ export default function SetupPage() {
             <li>Generate the token and paste it above.</li>
           </ol>
 
-          <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs text-faint">
-                  <th className="py-3 pr-4 font-normal">Tier</th>
-                  <th className="py-3 pr-4 font-normal">Repository permissions</th>
-                  <th className="py-3 font-normal">Patch can</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line align-top">
-                {TIERS.map((tier) => (
-                  <tr key={tier.name}>
-                    <td className="py-3 pr-4">
-                      <p className="font-medium">{tier.name}</p>
-                      <p className="text-xs text-faint">{tier.when}</p>
-                    </td>
-                    <td className="py-3 pr-4 text-muted">{tier.permissions}</td>
-                    <td className="py-3 text-muted">{tier.can}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Tiers />
 
           <p className="mt-5 text-sm leading-relaxed text-muted">
             Tier 3 is optional. On GitHub that permission also covers deleting repositories. Patch has no delete
