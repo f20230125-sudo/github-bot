@@ -174,8 +174,11 @@ def checked(
 # -- without a model --------------------------------------------------------------------------
 
 
-def template_post(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
-    """A plain post made of the facts and nothing else. Every word in it comes from the repository."""
+MAX_STACK = 6
+
+
+def _opening(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
+    """The news itself, in one sentence."""
     name = facts["name"]
     openings = {
         "launch": f"I built {name}.",
@@ -184,21 +187,108 @@ def template_post(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any])
         "milestone": f"{name} passed {data.get('stars') or facts.get('stars')} stars.",
         "update": f"An update on {name}.",
     }
-    parts = [openings.get(angle, openings["update"])]
-    summary = facts.get("description") or facts.get("intro")
-    if summary:
-        parts.append(summary)
+    return openings.get(angle, openings["update"])
+
+
+def _summary(facts: Mapping[str, Any]) -> str | None:
+    return facts.get("description") or facts.get("intro")
+
+
+def _license(facts: Mapping[str, Any]) -> str | None:
+    license_ = facts.get("license")
+    return license_ if license_ and license_ not in ("NOASSERTION", "Other") else None
+
+
+def _links(facts: Mapping[str, Any]) -> str:
+    links = [f"Try it: {facts['homepage']}"] if facts.get("homepage") else []
+    links.append(f"Code: {facts['url']}")
+    return "\n".join(links)
+
+
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
+
+
+def _plain(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
+    parts = [_opening(angle, facts, data)]
+    if _summary(facts):
+        parts.append(_summary(facts))
     about = []
     if facts.get("language"):
         about.append(f"Built with {facts['language']}.")
-    if facts.get("license") and facts["license"] not in ("NOASSERTION", "Other"):
-        about.append(f"Open source under the {facts['license']} license.")
+    if _license(facts):
+        about.append(f"Open source under the {_license(facts)} license.")
     if about:
         parts.append(" ".join(about))
-    links = [f"Try it: {facts['homepage']}"] if facts.get("homepage") else []
-    links.append(f"Code: {facts['url']}")
-    parts.append("\n".join(links))
+    parts.append(_links(facts))
     return "\n\n".join(parts)
+
+
+def _story(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
+    """Not how it came to be, which rules can't know, but what it took to make it worth showing:
+    what the health checks found in place, and the score."""
+    name, summary = facts["name"], _summary(facts)
+    parts = ["A project is not finished when the code works."]
+    if angle in ("launch", "update"):
+        parts.append(f"{name}: {summary}" if summary else _opening(angle, facts, data))
+    else:
+        parts.append(" ".join(part for part in (_opening(angle, facts, data), summary) if part))
+
+    has = facts.get("has") or {}
+    things = []
+    if _license(facts):
+        things.append("a license")
+    if has.get("setup_steps"):
+        things.append("a README that says how to run it")
+    if has.get("tests"):
+        things.append("tests")
+    if has.get("ci"):
+        things.append("CI that runs on every push")
+    proof = [f"It has {_join(things)}."] if things else []
+    score, before = facts.get("score"), facts.get("score_before")
+    if score is not None:
+        rose = f", up from {before}" if before is not None and before < score else ""
+        proof.append(f"An audit I run on all my repositories scores it {score} out of 100{rose}.")
+    if proof:
+        parts.append(" ".join(proof))
+    parts.append(_links(facts))
+    return "\n\n".join(parts)
+
+
+def _technical(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
+    news = None if angle in ("launch", "update") else _opening(angle, facts, data)
+    parts = [f"How {facts['name']} is put together."]
+    lead = " ".join(part for part in (news, _summary(facts)) if part)
+    if lead:
+        parts.append(lead)
+
+    stack: list[str] = []
+    for item in (facts.get("language"), *(facts.get("topics") or [])):
+        if item and item.lower() not in (seen.lower() for seen in stack):
+            stack.append(item)
+    has = facts.get("has") or {}
+    lines = [f"Stack: {', '.join(stack[:MAX_STACK])}."] if stack else []
+    if has.get("tests"):
+        lines.append("Tests run in CI on every push." if has.get("ci") else "It has tests.")
+    if _license(facts):
+        lines.append(f"License: {_license(facts)}.")
+    if lines:
+        parts.append("\n".join(lines))
+    parts.append(_links(facts))
+    return "\n\n".join(parts)
+
+
+def template_posts(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> list[dict[str, str]]:
+    """The post in every tone, made of the facts and nothing else. No model is asked. Every
+    statement is one the repository backs: its own description, what the health checks found in
+    place, its score, its links."""
+    write = {"plain": _plain, "story": _story, "technical": _technical}
+    return [{"tone": tone, "label": TONES[tone].label, "text": write[tone](angle, facts, data)} for tone in TONES]
+
+
+def template_post(angle: str, facts: Mapping[str, Any], data: Mapping[str, Any]) -> str:
+    """The plain one of `template_posts`."""
+    return _plain(angle, facts, data)
 
 
 # -- what Claude is told ----------------------------------------------------------------------
@@ -331,8 +421,9 @@ async def run_write(agent: PitchAgent, note_id: int, force: bool = False) -> Pos
 
             written_by = "claude" if variants else "template"
             if not variants:
-                text = template_post(brief.angle, facts, note.payload.get("data") or {})
-                variants, hooks = [{"tone": "plain", "label": TONES["plain"].label, "text": text}], []
+                # The same tones Claude would have been asked for, written by rules from the facts.
+                made = template_posts(brief.angle, facts, note.payload.get("data") or {})
+                variants, hooks = [variant for variant in made if variant["tone"] in tones], []
 
             post = agent.posts.create(
                 thread=thread,

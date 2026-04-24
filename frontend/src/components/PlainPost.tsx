@@ -4,20 +4,31 @@ import { ArrowUpRight, Copy, PenLine } from "lucide-react";
 import { useState } from "react";
 import { composeUrl, LINKEDIN_CHARS } from "@/lib/linkedin";
 import type { Handoff } from "@/lib/types";
+import { useViewerTone } from "@/lib/viewerTone";
 import { Button } from "./ui";
 
 /**
- * "Write the post" on the view-only copy. There is no Claude here to ask, so this offers the
- * plain post that rules build from the facts. It can be changed, copied and taken to LinkedIn.
+ * "Write the post" on the view-only copy. There is no Claude here to ask, so the post comes in
+ * each tone as rules write it from the facts. It can be changed, copied and taken to LinkedIn.
  * Nothing is saved: the text lives in this page until it is closed.
  */
-export function PlainPost({ note }: { note: Handoff }) {
-  const drafted = note.brief?.plain_post ?? "";
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState(drafted);
+export function PlainPost({ note, startOpen = false }: { note: Handoff; startOpen?: boolean }) {
+  const variants = note.brief?.plain_posts ?? [];
+  const preferred = useViewerTone();
+  const [open, setOpen] = useState(startOpen);
+  // The version chosen on this card. Until one is, the card follows the tone chosen for the site.
+  const [picked, setPicked] = useState<string | null>(null);
+  // Your text for each version. Switching versions keeps what you typed in each of them.
+  const [texts, setTexts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(variants.map((variant) => [variant.tone, variant.text])),
+  );
   const [said, setSaid] = useState<string | null>(null);
-  if (!drafted) return null;
+  if (!variants.length) return null;
 
+  const tone = picked ?? (variants.some((variant) => variant.tone === preferred) ? preferred! : variants[0].tone);
+  const text = texts[tone] ?? "";
+  const drafted = variants.find((variant) => variant.tone === tone)?.text ?? "";
+  const setText = (value: string) => setTexts((all) => ({ ...all, [tone]: value }));
   const picture = note.brief?.facts.find((fact) => fact.label === "Picture");
   const usable = text.trim().length > 0 && text.length <= LINKEDIN_CHARS;
 
@@ -29,7 +40,8 @@ export function PlainPost({ note }: { note: Handoff }) {
           Write the post
         </Button>
         <span className="text-xs leading-relaxed text-faint">
-          This copy has no Claude, so you get the plain version built from the facts.
+          In {variants.length === 1 ? "one tone" : `${variants.length} tones`}, written by rules from the facts. This
+          copy has no Claude.
         </span>
       </div>
     );
@@ -39,8 +51,28 @@ export function PlainPost({ note }: { note: Handoff }) {
     <div className="flex flex-col gap-3 border-t border-line pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="eyebrow">The draft</h3>
-        <span className="text-xs text-faint">Built from the facts by a template. No model call</span>
+        <span className="text-xs text-faint">Written by rules from the facts. No model call</span>
       </div>
+
+      {variants.length > 1 && (
+        <div role="tablist" aria-label="Versions" className="flex flex-wrap gap-2">
+          {variants.map((variant) => (
+            <button
+              key={variant.tone}
+              type="button"
+              role="tab"
+              aria-selected={variant.tone === tone}
+              onClick={() => setPicked(variant.tone)}
+              className={`rounded-full px-3 py-1.5 text-sm transition ${
+                variant.tone === tone ? "bg-fg text-bg" : "border border-line-strong text-muted hover:text-fg"
+              }`}
+            >
+              {variant.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <label htmlFor={`plain-${note.id}`} className="sr-only">
         The post
       </label>
@@ -58,7 +90,7 @@ export function PlainPost({ note }: { note: Handoff }) {
         </span>
         {text !== drafted && (
           <button type="button" onClick={() => setText(drafted)} className="underline underline-offset-4 hover:text-fg">
-            Back to the plain version
+            Back to the written version
           </button>
         )}
       </p>
@@ -112,8 +144,8 @@ export function PlainPost({ note }: { note: Handoff }) {
         </p>
       )}
       <p className="text-xs leading-relaxed text-faint">
-        Nothing here posts for you, and nothing you type is saved. On the working desk, Claude writes the post in
-        three tones, rules check it against the facts, and Pitch learns from your edits.
+        Nothing here posts for you, and nothing you type is saved. On the working desk, Claude writes these
+        versions, rules check them against the facts, and Pitch learns from your edits.
       </p>
     </div>
   );
