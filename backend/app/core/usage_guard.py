@@ -314,14 +314,14 @@ class UsageGuard:
         blocked = state["blocked"]
         if blocked and now < blocked["until"]:
             what = "a rate-limit warning" if blocked["status"] == "allowed_warning" else "that the limit is reached"
-            until = _clock_time(blocked["until"])
+            until = _clock_time(blocked["until"], now)
             return Decision(False, "limited", f"Claude Code reported {what}. Waiting until {until}.")
 
         readings = self._valid_readings(state, now)
         for window in ("session", "weekly"):
             reading = readings.get(window)
             if reading and reading["percent"] >= self.limits[window]:
-                until = f" It resets at {_clock_time(reading['resets_at'])}." if reading.get("resets_at") else ""
+                until = f" It resets at {_clock_time(reading['resets_at'], now)}." if reading.get("resets_at") else ""
                 return Decision(
                     False,
                     "over_limit",
@@ -402,8 +402,14 @@ def _epoch(value: Any) -> float | None:
     return float(value) / 1000 if value > 1e11 else float(value)
 
 
-def _clock_time(epoch: float | None) -> str:
+def _clock_time(epoch: float | None, now: float) -> str:
+    """When something happens, as a time of day, with the date if it is not the day of `now`.
+
+    `now` is the guard's own clock, not the machine's, so what is said depends only on what
+    the guard was told the time is.
+    """
     if not epoch:
         return "the next reset"
     moment = datetime.fromtimestamp(epoch)
-    return moment.strftime("%H:%M") if moment.date() == datetime.now().date() else moment.strftime("%d %b %H:%M")
+    same_day = moment.date() == datetime.fromtimestamp(now).date()
+    return moment.strftime("%H:%M") if same_day else moment.strftime("%d %b %H:%M")
