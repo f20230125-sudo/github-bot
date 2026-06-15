@@ -16,10 +16,16 @@ const repo = owner && name ? `${owner}/${name}` : "";
 // Cross-Origin-Opener-Policy is left alone on purpose: "Open in Hindsight"
 // opens another page and has to hear back from it, and that policy would cut
 // the tie.
+//
+// The one site allowed to show the desk inside a frame is Uzair's portfolio,
+// where the hosted copy runs in a window. Nobody else may. That is
+// `frame-ancestors` below. The older X-Frame-Options header can only say
+// "nobody" or "this site", not "this one other site", and browsers that read
+// both obey `frame-ancestors`, so it is left out.
+const PORTFOLIO = "https://uzair-khan-lac.vercel.app";
+
 const securityHeaders = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" },
-  // The same, for browsers that read the older header.
-  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: `frame-ancestors 'self' ${PORTFOLIO}; base-uri 'self'; object-src 'none'; form-action 'self'` },
   // A file is what its type says it is, and is never guessed to be a script.
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
