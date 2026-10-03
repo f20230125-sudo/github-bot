@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/* Design tokens come from the portfolio (portfolio/assets/css/style.css): near-black neutrals
+   with a faint cool bias, GitHub's own type pair, and one green reserved for "live" and "valid".
+   Dark first. Light mode is its own set of values, not an automatic flip.
+
+   Colour rules for data (checked with the dataviz validator's contrast function):
+   - Text is always ink (--fg, --fg-muted, --fg-faint): at least 4.5:1 on every surface.
+   - Status colours go on small marks (dots, icons, meter fills): at least 3:1, and always
+     next to a word or number, so colour is never the only signal. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0b0b0c;
+  --bg-sunken: #070708;
+  --surface: #131315;
+  --surface-2: #1c1c1f;
+  --surface-3: #26262a;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --fg: #ededef;
+  --fg-muted: #a1a1aa;
+  --fg-faint: #8a8a94;
+
+  /* The brand's one colour: live and healthy. */
+  --live: #6ccb94;
+
+  /* Status marks. Fixed meaning, never used for anything else. */
+  --status-good: var(--live);
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-neutral: var(--fg-muted);
+
+  /* One identity colour per agent, used as a dot beside the agent's name. */
+  --agent-patch: #7da3ff;
+  --agent-pitch: #d98ab8;
+  --agent-desk: #a1a1aa;
+
+  /* Chart series, in a fixed order. These are the dark steps of the dataviz reference palette,
+     checked against --surface with its validator (colour-blind separation and contrast). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f6f6f7;
+    --bg-sunken: #eeeef0;
+    --surface: #ffffff;
+    --surface-2: #efeff1;
+    --surface-3: #e4e4e8;
+    --line: rgba(0, 0, 0, 0.08);
+    --line-strong: rgba(0, 0, 0, 0.16);
+    --fg: #111113;
+    --fg-muted: #55555d;
+    --fg-faint: #66666f;
+    --live: #157f3c;
+    --status-warning: #a16207;
+    --status-serious: #c2410c;
+    --status-critical: #b42f2f;
+    --agent-patch: #2f5fd0;
+    --agent-pitch: #a8407f;
+    --agent-desk: #55555d;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f6f7;
+  --bg-sunken: #eeeef0;
+  --surface: #ffffff;
+  --surface-2: #efeff1;
+  --surface-3: #e4e4e8;
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.16);
+  --fg: #111113;
+  --fg-muted: #55555d;
+  --fg-faint: #66666f;
+  --live: #157f3c;
+  --status-warning: #a16207;
+  --status-serious: #c2410c;
+  --status-critical: #b42f2f;
+  --agent-patch: #2f5fd0;
+  --agent-pitch: #a8407f;
+  --agent-desk: #55555d;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sunken: var(--bg-sunken);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-faint: var(--fg-faint);
+  --color-live: var(--live);
+  --color-good: var(--status-good);
+  --color-warning: var(--status-warning);
+  --color-serious: var(--status-serious);
+  --color-critical: var(--status-critical);
+  --color-neutral: var(--status-neutral);
+  --color-patch: var(--agent-patch);
+  --color-pitch: var(--agent-pitch);
+  --color-desk: var(--agent-desk);
+
+  --font-display: var(--font-hubot), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-mona), ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--fg) 22%, transparent);
+}
+
+/* The outline follows each element's own corners, so a pill stays a pill when focused. */
+:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Equal-width digits: only for numbers that line up in a column. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.live-dot {
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise-in {
+  animation: rise-in 260ms var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot,
+  .rise-in {
+    animation: none;
+  }
+}
