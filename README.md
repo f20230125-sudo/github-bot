@@ -10,6 +10,21 @@ Everything runs on your own machine. Patch's writing is done by Claude through t
 program you are already signed in to, so it uses your Claude plan. There is no API key and nothing
 here can charge you.
 
+![The Floor: a chat answer from stored data, a drafting run, and eight proposals waiting for approval](docs/screenshots/floor.png)
+
+The Floor after an audit of 12 real repositories. Claude was switched off for this run, so the
+chat answer came from stored data and all eight proposals came from templates: 30 GitHub requests
+and 0 model calls.
+
+## What it looks like
+
+| | |
+|---|---|
+| ![A scorecard for each repository](docs/screenshots/repos.png) | ![A proposal with its files shown as diffs](docs/screenshots/proposal.png) |
+| **Repos.** A score out of 100 for each repository, worst first. | **A proposal.** Nothing is sent until you approve. Each file can be edited or switched off first. |
+| ![Patch's page](docs/screenshots/patch.png) | ![The metrics page](docs/screenshots/metrics.png) |
+| **Patch.** Its voice, what it has learned from you, and the full list of what it may change. | **Metrics.** Requests, tokens and plan usage against the stop. This one is shown with sample numbers. |
+
 ## What Patch does
 
 | Job | What happens | Uses Claude? |
@@ -186,3 +201,7 @@ its own API key.
 
 The LinkedIn agent, pull request review, release notes, a profile README, a weekly digest, pull
 requests that change code, and deployment.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
