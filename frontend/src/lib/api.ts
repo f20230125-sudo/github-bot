@@ -8,9 +8,11 @@ import type {
   Handoff,
   Lesson,
   Metrics,
+  PitchPosts,
   PitchSheet,
   Policy,
   Portfolio,
+  Post,
   ProposalCard,
   ProposalDetail,
   RepoCard,
@@ -175,14 +177,41 @@ export const fetchSheet = (signal?: AbortSignal) => request<AgentSheet>("/api/ag
 
 export const fetchPitch = (signal?: AbortSignal) => request<PitchSheet>("/api/agents/pitch", { signal });
 
-export const addLesson = (text: string) =>
-  request<Lesson>("/api/lessons", { method: "POST", headers: WRITE_JSON, body: JSON.stringify({ text }) });
+export const addLesson = (text: string, agent = "patch") =>
+  request<Lesson>("/api/lessons", { method: "POST", headers: WRITE_JSON, body: JSON.stringify({ text, agent }) });
 
 export const updateLesson = (id: number, changes: { text?: string; active?: boolean }) =>
   request<Lesson>(`/api/lessons/${id}`, { method: "PUT", headers: WRITE_JSON, body: JSON.stringify(changes) });
 
 export const deleteLesson = (id: number) =>
   request<{ deleted: boolean }>(`/api/lessons/${id}`, { method: "DELETE", headers: WRITE });
+
+// -- Pitch's drafts: the working desk only ----------------------------------------------------
+
+export const fetchPosts = (signal?: AbortSignal) => request<PitchPosts>("/api/pitch/posts", { signal });
+
+/** Ask Pitch to write a post for a note. `force` writes a new one even if a draft is waiting. */
+export const writePost = (noteId: number, force = false) =>
+  request<{ queued: boolean }>(`/api/pitch/notes/${noteId}/draft?force=${force}`, { method: "POST", headers: WRITE });
+
+type YourVersion = { text: string; tone: string };
+
+export const savePost = (id: number, yours: YourVersion) =>
+  request<Post>(`/api/pitch/posts/${id}`, { method: "PUT", headers: WRITE_JSON, body: JSON.stringify(yours) });
+
+/** Tell Pitch you posted it yourself. Nothing is sent to LinkedIn by this. */
+export const markPosted = (id: number, yours: YourVersion) =>
+  request<Post>(`/api/pitch/posts/${id}/posted`, { method: "POST", headers: WRITE_JSON, body: JSON.stringify(yours) });
+
+export const dismissPost = (id: number, reason: string) =>
+  request<Post>(`/api/pitch/posts/${id}/dismiss`, {
+    method: "POST",
+    headers: WRITE_JSON,
+    body: JSON.stringify({ reason }),
+  });
+
+export const setTone = (tone: string | null) =>
+  request<{ tone: string | null }>("/api/pitch/tone", { method: "PUT", headers: WRITE_JSON, body: JSON.stringify({ tone }) });
 
 // -- Claude and policy ------------------------------------------------------------------------
 

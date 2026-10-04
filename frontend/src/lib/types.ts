@@ -260,8 +260,47 @@ export type Handoff = {
   topic: string;
   text: string;
   data: Record<string, unknown>;
+  /** What ties a post to this note. Missing in a snapshot taken before Pitch could write. */
+  thread?: string;
   /** Missing in a snapshot taken before Pitch joined the desk. */
   brief?: Brief | null;
+};
+
+/** One version of a post, in one tone. */
+export type PostVariant = { tone: string; label: string; text: string };
+
+/** A post Pitch drafted. It exists on the working desk only: never on the view-only copy. */
+export type Post = {
+  id: number;
+  /** The note it was written for. */
+  thread: string;
+  repo: string | null;
+  status: "draft" | "posted" | "dismissed";
+  title: string;
+  angle_label: string | null;
+  /** "claude": one model call wrote it. "template": built from the facts, no model. */
+  source: "claude" | "template";
+  variants: PostVariant[];
+  /** Other opening lines for the first version. */
+  hooks: string[];
+  /** Versions that were thrown away, and why. */
+  notes: string[];
+  picture: { path: string; url: string } | null;
+  /** Your version, once you have copied or posted it. */
+  text: string | null;
+  tone: string | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PitchPosts = {
+  posts: Post[];
+  tone: string | null;
+  /** Notes a draft is being written for right now, by id. */
+  writing: number[];
+  /** Why Claude can't be asked right now, or null if it can. */
+  claude_off: string | null;
 };
 
 /** One day's totals across everything the desk did. */
@@ -354,6 +393,11 @@ export type PitchSheet = AgentInfo & {
   /** What Pitch does today, and what it has no way to do. */
   does: string[];
   never: string[];
+  /** The tone you chose for your posts. Null until you have picked one. */
+  tone?: string | null;
+  tones?: Record<string, { label: string; how: string }>;
+  lessons?: Lesson[];
+  lesson_limit?: number;
 };
 
 export function str(payload: Record<string, unknown>, key: string): string | undefined {

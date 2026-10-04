@@ -154,7 +154,7 @@ def patch(db, bus, fake, tmp_path):
 
 @pytest.fixture
 def pitch(db, bus, patch):
-    return PitchAgent(db, bus, source=patch)
+    return PitchAgent(patch.settings, db, bus, patch.claude, source=patch)
 
 
 def tidy(repo: FakeRepo) -> None:
@@ -265,7 +265,13 @@ async def test_pitchs_mood_follows_the_same_health_as_patchs(patch, pitch):
 
 def test_every_line_pitch_can_say_passes_its_own_voice_rules():
     pitch = Persona.load(PERSONA_PATH)
-    sample = {"ideas_text": "2 ideas", "notes_text": "3 notes", "ready": 2, "score": 62, "needed": 80}
+    sample = {
+        "ideas_text": "2 ideas", "notes_text": "3 notes", "ready": 2, "score": 62, "needed": 80,
+        "name": "document-qa-agent", "drafts_text": "2 drafts", "versions_text": "3 versions",
+        "hooks_text": "2 other opening lines", "claude_text": "1 model call", "lessons_text": "3 lessons",
+        "reason": "Claude Code gave no usage percentage this time, so Patch won't call it.",
+        "lesson": "Keep posts under 800 characters.",
+    }  # fmt: skip
     for key, template in pitch.all_lines().items():
         fields = {name for _, name, _, _ in string.Formatter().parse(template) if name}
         assert fields <= set(sample), f"{key} uses a placeholder the test doesn't know: {fields - set(sample)}"
@@ -322,7 +328,7 @@ async def test_pitch_says_so_when_the_desk_is_paused(client, db):
     }  # fmt: skip
 
     await client.put("/api/pause", json={"paused": False}, headers=WRITE_HEADERS)
-    assert by_pitch(db, "agent.status")[-1].payload["text"] == "Nothing worth a post yet."
+    assert by_pitch(db, "agent.status")[-1].payload["text"] == "Nothing new worth a post."
 
 
 # -- in the scheduled check -------------------------------------------------------------------

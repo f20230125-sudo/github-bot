@@ -22,6 +22,7 @@ from typing import Any
 import httpx
 from fastapi import FastAPI
 
+from .agents.linkedin import PITCH
 from .config import BACKEND_DIR, get_settings
 from .events import utcnow
 from .main import create_app
@@ -81,17 +82,35 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
         for proposal in routes["/api/proposals?status=all"]["proposals"]:
             path = f"/api/proposals/{proposal['id']}"
             routes[path] = await get(path)
-        for run in routes["/api/runs?limit=100"]["runs"]:
+        runs = routes["/api/runs?limit=100"]
+        runs["runs"] = [run for run in runs["runs"] if not _private_run(run["agent"], run["run_id"])]
+        for run in runs["runs"]:
             path = f"/api/runs/{run['run_id']}"
             routes[path] = await get(path)
         events = (await get(f"/api/events?limit={MAX_EVENTS}"))["events"]
 
+    # Pitch's drafts never leave the desk. Nor does anything that came of them: the runs that
+    # wrote them, the rules learned from them (a rule can repeat what a draft said), the tone
+    # you chose, or a status line saying a draft is waiting. The posts themselves are not among
+    # the pages asked for at all. What stays is Pitch reading Patch's notes.
+    events = [e for e in events if not _private_run(e["agent"], e["run_id"])]
+    reading = app.state.pitch.public_status()
+    routes["/api/agents/pitch"] |= {"lessons": [], "tone": None, "status": reading}
+
     desk = routes["/api/agents"]
     desk["agents"] = [_without_clock(card) for card in desk["agents"]]
+    for card in desk["agents"]:
+        if card["id"] == PITCH.id:
+            card["status"] = reading
     desk["current"] = None
     routes["/api/agents/patch"] = _without_clock(routes["/api/agents/patch"])
     routes["/api/chat?limit=30"]["busy"] = False
     return {"exported_at": utcnow(), "events": _latest_work(events), "routes": routes}
+
+
+def _private_run(agent: str, run_id: str | None) -> bool:
+    """Whether an event or a run is Pitch's and about anything other than reading Patch's notes."""
+    return agent == PITCH.id and not (run_id or "").startswith("read-")
 
 
 def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -148,7 +167,10 @@ def digest(snapshot: dict[str, Any]) -> str:
     # A note for Pitch, and whether Pitch finds enough in it for a post.
     handoffs = [(handoff["text"], handoff["brief"]["ready"]) for handoff in routes["/api/handoffs"]["handoffs"]]
     mood = routes["/api/agents/patch"]["mood"]  # the face Patch wears: it follows the portfolio score
-    substance = json.dumps([repos, findings, proposals, lessons, handoffs, mood], sort_keys=True, default=str)
+    # What Pitch says it does and never does. It changes only when the code does, and then the
+    # site should say so without waiting for a repository to change.
+    pitch = (routes["/api/agents/pitch"]["does"], routes["/api/agents/pitch"]["never"])
+    substance = json.dumps([repos, findings, proposals, lessons, handoffs, mood, pitch], sort_keys=True, default=str)
     return hashlib.sha256(substance.encode()).hexdigest()[:16]
 
 
@@ -163,7 +185,8 @@ def summary(snapshot: dict[str, Any]) -> list[str]:
         f"{len(routes['/api/repos']['repos'])} repositories with their scores and findings",
         f"{len(routes['/api/proposals?status=all']['proposals'])} proposals, with the full text of every file in them",
         f"{len(chat)} chat messages, word for word",
-        f"{len(routes['/api/handoffs']['handoffs'])} notes for Pitch, with what a post may state about each",
+        f"{len(routes['/api/handoffs']['handoffs'])} notes for Pitch, with what a post may state about each "
+        "(no draft, no tone and no rule of Pitch's: those stay on this machine)",
         f"{len(routes['/api/agents/patch']['lessons'])} lessons",
         "your Claude plan usage percentages" if reported else "no Claude plan usage figures",
     ]

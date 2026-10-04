@@ -49,6 +49,7 @@ async def agent_sheet(request: Request, agent_id: str):
 
 class LessonBody(BaseModel):
     text: str = Field(min_length=1, max_length=400)
+    agent: str = "patch"  # whose rule it is
 
 
 class LessonEdit(BaseModel):
@@ -56,14 +57,16 @@ class LessonEdit(BaseModel):
     active: bool | None = None
 
 
-UNUSABLE = f"A lesson is one line of {MIN_CHARS} to {MAX_CHARS} characters that Patch doesn't already have."
+UNUSABLE = f"A lesson is one line of {MIN_CHARS} to {MAX_CHARS} characters that the agent doesn't already have."
 
 
 @router.post("/lessons", status_code=201)
 async def add_lesson(request: Request, body: LessonBody):
-    """Teach Patch something in your own words."""
-    patch = request.app.state.patch
-    lesson = patch.lessons.add(patch.id, body.text, "you")
+    """Teach an agent something in your own words."""
+    agent = request.app.state.agents.get(body.agent)
+    if agent is None:
+        raise HTTPException(404, "Nobody by that name works here.")
+    lesson = agent.lessons.add(agent.id, body.text, "you")
     if lesson is None:
         raise HTTPException(422, UNUSABLE)
     return asdict(lesson)

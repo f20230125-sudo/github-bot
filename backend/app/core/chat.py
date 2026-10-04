@@ -95,6 +95,15 @@ def unverified_numbers(text: str, source: str) -> list[str]:
     )
 
 
+def in_voice(persona: Any, text: str | None, fallback: str, source: str | None = None) -> str:
+    """A line an agent may say on the site. A line from Claude that breaks the agent's voice rules,
+    or cites a number that isn't in `source` (the data Claude was given), is swapped for `fallback`."""
+    line = " ".join((text or "").split())
+    if not line or persona.lint(line) or (source is not None and unverified_numbers(line, source)):
+        return fallback
+    return line
+
+
 # -- the conversation so far ------------------------------------------------------------------
 
 

@@ -15,7 +15,7 @@ import httpx
 from ...bus import EventBus
 from ...config import Settings
 from ...core.agent import Job
-from ...core.chat import unverified_numbers
+from ...core.chat import in_voice
 from ...core.claude import Claude
 from ...core.desk import is_paused
 from ...core.memory import MAX_ACTIVE, LessonStore
@@ -191,6 +191,15 @@ class PatchAgent:
         repo = self.store.get(full_name)
         return repo_facts(repo, self.store.score_history(repo.full_name)) if repo else None
 
+    def readme(self, full_name: str) -> str | None:
+        """The README as the last audit read it. Text someone else may have written: data, not instructions."""
+        repo = self.store.get(full_name)
+        return repo.snapshot.details.readme_text if repo else None
+
+    def owner(self) -> str:
+        """Whose repositories these are: the name on the GitHub profile once it has been looked up."""
+        return self.db.get_kv("owner_name") or self.settings.github_user
+
     # -- voice and mood -----------------------------------------------------------------------
 
     def mood(self) -> str:
@@ -219,10 +228,7 @@ class PatchAgent:
     ) -> None:
         """Post a line in Patch's voice. A line from Claude that breaks the voice rules, or cites a
         number that isn't in `source` (the data Claude was given), is swapped for a template."""
-        line = " ".join((text or "").split())
-        if not line or self.persona.lint(line) or (source is not None and unverified_numbers(line, source)):
-            line = fallback
-        await ctx.emit("message", {"kind": "say", "text": line}, repo=repo)
+        await ctx.emit("message", {"kind": "say", "text": in_voice(self.persona, text, fallback, source)}, repo=repo)
 
     async def chat(self, text: str, desk: Desk) -> None:
         """Answer a message typed on the site. Rules first; one Claude call only for an open question."""

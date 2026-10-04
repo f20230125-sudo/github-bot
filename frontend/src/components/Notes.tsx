@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { shortDate, shortRepo } from "@/lib/format";
 import type { Brief, Handoff } from "@/lib/types";
 import { Dot, Tag } from "./ui";
@@ -49,8 +50,11 @@ export function NoteLine({ note }: { note: Handoff }) {
   );
 }
 
-/** A note with everything Pitch read out of it: the verdict, why, and what a post may state. */
-export function NoteCard({ note }: { note: Handoff }) {
+/**
+ * A note with everything Pitch read out of it: the verdict, why, and what a post may state.
+ * `children` is what the working desk adds below: the draft, and what to do with it.
+ */
+export function NoteCard({ note, children }: { note: Handoff; children?: ReactNode }) {
   const brief = note.brief;
   return (
     <li className="panel flex flex-col gap-4 p-5">
@@ -114,6 +118,7 @@ export function NoteCard({ note }: { note: Handoff }) {
           )}
         </>
       )}
+      {children}
     </li>
   );
 }
