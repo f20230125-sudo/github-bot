@@ -19,8 +19,9 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..db import Database
 
@@ -39,8 +40,22 @@ _WINDOW_NAMES = {
 }  # fmt: skip
 _STOP_STATUSES = {"rejected", "allowed_warning"}
 _PERCENT_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)\s*%")
+_SHARE_RE = re.compile(r"%\s*of\b")
 _SESSION_RE = re.compile(r"session|5[\s-]?hour|\b5h\b")
 _WEEK_RE = re.compile(r"week|7[\s-]?day|\b7d\b")
+# "resets Oct 4, 9:20pm (Asia/Dubai)", "Resets 3:59pm": what follows the word, and the zone if named.
+_RESET_RE = re.compile(r"resets?\s+(?:at\s+|on\s+)?([^()\n]+?)\s*(?:\(([^)]+)\))?\s*$", re.I)
+_WHEN_RE = re.compile(
+    r"^(?:(?P<month>[a-z]{3})[a-z]*\.?\s+(?P<day>\d{1,2})(?:,|\s|$)\s*)?"
+    r"(?:(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<half>am|pm)?)?$",
+    re.I,
+)
+_MONTHS = {
+    name: number
+    for number, name in enumerate(
+        ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), start=1
+    )
+}
 
 
 @dataclass(frozen=True)
@@ -50,29 +65,94 @@ class Decision:
     reason: str
 
 
-def parse_usage_text(text: str) -> dict[str, float]:
-    """Read "12% used" style figures out of `/usage` output. Unrecognised text gives an empty result."""
+def _zone(name: str | None) -> tzinfo | None:
+    """The named time zone, or this machine's when there is no name or this machine doesn't know
+    it (Windows ships no zone database). Claude Code reports times in the machine's own zone."""
+    if name:
+        try:
+            return ZoneInfo(name.strip())
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    return datetime.now().astimezone().tzinfo
+
+
+def parse_reset(when: str, zone: str | None, now: float) -> float | None:
+    """When a window resets, from "Oct 4, 9:20pm" or "3:59pm", as seconds since the epoch.
+    None if the text can't be read, or names a day without a time."""
+    match = _WHEN_RE.match(when.strip())
+    if not match or match["hour"] is None:
+        return None
+    hour, minute, half = int(match["hour"]), int(match["minute"] or 0), (match["half"] or "").lower()
+    if half:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if half == "pm" else 0)
+    if hour > 23 or minute > 59:
+        return None
+
+    base = datetime.fromtimestamp(now, _zone(zone))
+    try:
+        if match["month"]:
+            month = _MONTHS.get(match["month"].lower()[:3])
+            if month is None:
+                return None
+            moment = base.replace(month=month, day=int(match["day"]), hour=hour, minute=minute, second=0, microsecond=0)
+            if moment < base - timedelta(days=1):
+                moment = moment.replace(year=moment.year + 1)  # "Jan 2", read in late December
+        else:
+            moment = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if moment <= base:
+                moment += timedelta(days=1)  # a time of day that has passed means tomorrow
+    except ValueError:
+        return None  # a day that doesn't exist
+    return moment.timestamp()
+
+
+def parse_usage(text: str, now: float | None = None) -> dict[str, dict[str, float | None]]:
+    """Read `/usage` output: for each window, how full it is and, where the text says so, when it
+    resets. Both layouts are understood: "Current session: 69% used · resets Oct 4, 9:20pm
+    (Asia/Dubai)" on one line, and the figure and the reset on the lines below the heading.
+    Unrecognised text gives an empty result."""
+    now = time.time() if now is None else now
     lines = text.splitlines()
-    found: dict[str, float] = {}
+    found: dict[str, dict[str, float | None]] = {}
     for i, line in enumerate(lines):
         lower = line.lower()
+        if lower.lstrip().startswith("last "):
+            continue  # "Last 24h · 433 requests · 2 sessions": a breakdown of past use, not a limit
         window = "session" if _SESSION_RE.search(lower) else "weekly" if _WEEK_RE.search(lower) else None
         if window is None:
             continue
-        # The figure is on the same line or one of the next two.
-        for candidate in lines[i : i + 3]:
-            if candidate is not line and (_SESSION_RE.search(candidate.lower()) or _WEEK_RE.search(candidate.lower())):
-                break  # that line belongs to another window
-            match = _PERCENT_RE.search(candidate)
-            if match:
-                value = float(match.group(1))
-                if re.search(r"left|remaining", candidate.lower()):
-                    value = 100 - value
-                # Several weekly lines (all models, one model): keep the highest. First session line wins.
-                if window not in found or (window == "weekly" and value > found[window]):
-                    found[window] = value
+        # The window's own lines: this one and up to two below, stopping where another window starts.
+        block = [line]
+        for candidate in lines[i + 1 : i + 3]:
+            if _SESSION_RE.search(candidate.lower()) or _WEEK_RE.search(candidate.lower()):
                 break
+            block.append(candidate)
+
+        percent = None
+        for candidate in block:
+            match = _PERCENT_RE.search(candidate)
+            if match and not _SHARE_RE.search(candidate):  # "96% of your usage was ..." is a share, not a level
+                percent = float(match.group(1))
+                if re.search(r"left|remaining", candidate.lower()):
+                    percent = 100 - percent
+                break
+        if percent is None:
+            continue
+        resets = next((m for m in map(_RESET_RE.search, block) if m), None)
+        # Several weekly lines (all models, one model): keep the highest. First session line wins.
+        if window not in found or (window == "weekly" and percent > (found[window]["percent"] or 0)):
+            found[window] = {
+                "percent": percent,
+                "resets_at": parse_reset(resets.group(1), resets.group(2), now) if resets else None,
+            }
     return found
+
+
+def parse_usage_text(text: str) -> dict[str, float]:
+    """Just the "12% used" style figures out of `/usage` output, by window."""
+    return {window: reading["percent"] for window, reading in parse_usage(text).items()}  # type: ignore[misc]
 
 
 class UsageGuard:
@@ -176,16 +256,20 @@ class UsageGuard:
 
     def record_usage_text(self, text: str) -> bool:
         """Take in `/usage` output. Returns whether any figure could be read."""
-        figures = parse_usage_text(text)
+        now = self._clock()
+        figures = parse_usage(text, now)
         if not figures:
             return False
         state = self._load()
-        now = self._clock()
-        for window, percent in figures.items():
+        for window, reading in figures.items():
             previous = state["readings"].get(window, {})
+            known = previous.get("resets_at") if (previous.get("resets_at") or 0) > now else None
+            percent = reading["percent"]
             state["readings"][window] = {
                 "percent": percent,
-                "resets_at": previous.get("resets_at") if (previous.get("resets_at") or 0) > now else None,
+                # When the text says when the window resets, that is what counts. Otherwise the
+                # last reset time we were told, while it is still ahead.
+                "resets_at": reading["resets_at"] or known,
                 "at": now,
                 "source": "usage command",
             }

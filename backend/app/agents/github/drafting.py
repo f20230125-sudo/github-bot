@@ -96,7 +96,7 @@ async def run_draft(agent: PatchAgent, ctx: RunContext, client: GitHubClient, fo
         return []
 
     await ctx.step("plan", say("draft.start", repos_text=_repos(len(fixable))))
-    state = _State(claude_off=await agent.claude.unavailable_reason())
+    state = _State(claude_off=await agent.claude.unavailable_reason(refresh=True))
     if state.claude_off:
         await ctx.step("claude", say("draft.claude_off", reason=state.claude_off))
 

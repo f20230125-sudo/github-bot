@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { fetchClaude, testClaude } from "@/lib/api";
 import { lastFinishedRun } from "@/lib/feed";
-import { statusColor } from "@/lib/format";
+import { resetTime, statusColor } from "@/lib/format";
 import type { ClaudeStatus, ClaudeTest, UsageWindow } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { useStream } from "./StreamProvider";
@@ -45,6 +45,7 @@ export function UsageMeter({ label, window, limit }: { label: string; window: Us
       {window.minutes_old !== null && (
         <p className="mt-1 text-xs text-faint">
           Read {window.minutes_old === 0 ? "just now" : `${window.minutes_old} min ago`} from the {window.source}.
+          {window.resets_at !== null && ` Resets ${resetTime(window.resets_at)}.`}
         </p>
       )}
     </div>

@@ -1,5 +1,7 @@
 """Calling Claude through the CLI, against the stand-in. No real Claude call is ever made here."""
 
+from datetime import datetime
+
 import pytest
 from pydantic import BaseModel
 
@@ -301,3 +303,77 @@ async def test_calls_are_counted_and_shown_on_the_run(fake, db, bus):
     assert tool.payload["input_tokens"] == 200 and tool.payload["cache_read_tokens"] == 1000
     usage = next(e for e in events if e.type == "usage").payload
     assert usage == {"claude_calls": 1, "input_tokens": 1200, "output_tokens": 50, "cache_read_tokens": 1000}
+
+
+# -- going back to work by itself once a limit has reset ----------------------------------------
+
+
+OVER = "Current session: 69% used · resets 9:20pm\nCurrent week (all models): 9% used · resets Oct 11, 4pm"
+UNDER = "Current session: 3% used · resets 2:20am\nCurrent week (all models): 10% used · resets Oct 11, 4pm"
+EVENING = datetime(2026, 10, 4, 19, 15).timestamp()
+
+
+class Clock:
+    def __init__(self, now: float):
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def usage_answers(*texts: str) -> dict:
+    """The stand-in answers the usage check with these texts in turn, each at no cost."""
+    return {
+        "routes": [{"match": "/usage", "responses": [{"text": text, "usage": ZERO_USAGE} for text in texts]}],
+        "responses": [{"structured": {"title": "t", "count": 1}}],
+    }
+
+
+async def test_once_the_limit_has_reset_the_next_call_checks_again_for_free_and_goes_ahead(fake, db):
+    clock = Clock(EVENING)
+    fake.set(usage_answers(OVER, UNDER))
+    claude = fake.service(db, clock=clock)
+
+    await claude.test()  # you press the button: 69%, over the stop, so the test call is skipped
+    assert (await claude.unavailable_reason()).endswith("at or above the 40% stop. It resets at 21:20.")
+    with pytest.raises(ClaudeBlocked):
+        await claude.ask_structured(None, "t", Answer, system="s", prompt="p", model="sonnet")
+    asked = len(fake.calls())
+
+    clock.now = datetime(2026, 10, 4, 21, 25).timestamp()  # five minutes after the reset
+    # The 69% belonged to a window that has ended. Nothing says "no" any more, and nobody pressed anything.
+    assert await claude.unavailable_reason() is None and len(fake.calls()) == asked
+
+    answer = await claude.ask_structured(None, "t", Answer, system="s", prompt="p", model="sonnet")
+    assert answer.count == 1
+    check, call = fake.calls()[asked:]  # one free look at the usage, then the call itself
+    assert "/usage" in check["args"] and call["stdin"] == "p"
+    assert claude.guard.snapshot()["windows"]["session"]["percent"] == 3
+
+
+async def test_when_the_reset_time_is_unknown_a_job_asks_again_after_half_an_hour(fake, db):
+    clock = Clock(EVENING)
+    fake.set(usage_answers("Current session: 69% used\nCurrent week (all models): 9% used", UNDER))
+    claude = fake.service(db, clock=clock)
+
+    await claude.test()
+    assert claude.rechecks() is False  # the reading is fresh: asking again now would change nothing
+    assert (await claude.unavailable_reason(refresh=True)).startswith("Your 5-hour usage is 69%")
+    asked = len(fake.calls())
+
+    clock.now += 31 * 60
+    # A page asking is told what the last reading allows, and that the next job will look again.
+    assert (await claude.unavailable_reason()).startswith("Your 5-hour usage is 69%") and claude.rechecks() is True
+    assert len(fake.calls()) == asked  # asking for the page's sake started nothing
+
+    assert await claude.unavailable_reason(refresh=True) is None  # a job asks: one free check, and it may work
+    assert len(fake.calls()) == asked + 1 and "/usage" in fake.calls()[-1]["args"]
+    assert claude.rechecks() is False
+
+
+async def test_without_a_free_usage_check_a_no_stays_a_no(fake, db):
+    """Before the connection test has shown that asking is free, nothing is asked on a job's behalf."""
+    fake.set({"routes": [usage_route()], "responses": [{"structured": {"ok": True}}]})
+    claude = fake.service(db)
+    assert await claude.unavailable_reason(refresh=True) == "Patch can't read your plan usage, so it won't call Claude."
+    assert fake.calls() == [] and claude.rechecks() is False

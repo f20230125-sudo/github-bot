@@ -106,7 +106,7 @@ async def _answer(agent: PatchAgent, desk: Desk, ctx: RunContext, text: str) -> 
         ctx.counters["calls_avoided"] += 1
         return _repos_reply(agent, mentioned)
 
-    reason = "The desk is paused." if desk.paused else await agent.claude.unavailable_reason()
+    reason = "The desk is paused." if desk.paused else await agent.claude.unavailable_reason(refresh=True)
     if reason is None:
         try:
             reply = await _ask_claude(agent, ctx, text, stored, mentioned)

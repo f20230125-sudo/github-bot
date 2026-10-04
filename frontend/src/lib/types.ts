@@ -302,8 +302,10 @@ export type PitchPosts = {
   tone: string | null;
   /** Notes a draft is being written for right now, by id. */
   writing: number[];
-  /** Why Claude can't be asked right now, or null if it can. */
+  /** Why Claude can't be asked, going by the last usage reading. Null if it can. */
   claude_off: string | null;
+  /** The usage will be read again, at no cost, when a draft is asked for: "off" may no longer hold. */
+  claude_rechecks?: boolean;
 };
 
 /** One day's totals across everything the desk did. */
