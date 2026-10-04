@@ -142,6 +142,19 @@ only grant it if you are comfortable with that.
 
 Opening a run shows its trace: every request and call it made, with a replay.
 
+## The public demo
+
+The working desk cannot be hosted: it uses the Claude sign-in and the GitHub token on its owner's
+machine. A hosted copy is therefore a view-only demo. It replays a stored recording, and every
+control that would change something is switched off.
+
+- In `backend`, `python -m app.showcase` writes what your desk holds now to
+  `frontend/public/showcase/snapshot.json`, and lists what the file contains. Everything in that
+  file becomes public once you push it.
+- Building with `NEXT_PUBLIC_SHOWCASE=1` makes the site read that file instead of the API. On
+  Vercel this is the default: import the repository, set the root directory to `frontend`, and
+  deploy. Each push to `main` then updates the demo.
+
 ## Settings
 
 All settings are in `backend/.env`. `backend/.env.example` lists them with comments.
@@ -155,6 +168,7 @@ goes to GitHub is always plain.
 ```
 backend/app/
   main.py  config.py  security.py    the app, settings, and the local-only guard
+  showcase.py                        exports the snapshot behind the public, view-only demo
   events.py  bus.py  db.py           typed events: stored first, then sent to the live feed
   core/                              shared by every agent: runs, jobs, scheduler, pause,
                                      the Claude runner, the usage stop, chat, lessons, proposals
@@ -202,8 +216,8 @@ its own API key.
 
 ## Not built yet
 
-The LinkedIn agent, pull request review, release notes, a profile README, a weekly digest, pull
-requests that change code, and deployment.
+The LinkedIn agent, pull request review, release notes, a profile README, a weekly digest, and
+pull requests that change code.
 
 ## License
 

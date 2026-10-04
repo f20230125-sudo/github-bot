@@ -7,6 +7,7 @@ import { ClaudePanel } from "@/components/ClaudePanel";
 import { SafetyPanel } from "@/components/SafetyPanel";
 import { Button, Dot, InlineError, Notice } from "@/components/ui";
 import { fetchSetup, removeGithubToken, saveGithubToken } from "@/lib/api";
+import { SHOWCASE } from "@/lib/showcase";
 import { useApi } from "@/lib/useApi";
 
 const TIERS = [
@@ -70,6 +71,22 @@ export default function SetupPage() {
   }
 
   const github = data?.github;
+
+  if (SHOWCASE) {
+    return (
+      <div className="flex max-w-3xl flex-col gap-8">
+        <div>
+          <p className="eyebrow">Setup</p>
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">Nothing to set up here.</h1>
+        </div>
+        <Notice>
+          This is a view-only copy. On the working desk, this page holds the GitHub token, the Claude connection
+          test and the safety switches. The switches are shown below as they were when the recording was taken.
+        </Notice>
+        <SafetyPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="flex max-w-3xl flex-col gap-8">

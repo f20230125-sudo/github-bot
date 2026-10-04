@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { addLesson, deleteLesson, updateLesson } from "@/lib/api";
 import { shortDate } from "@/lib/format";
+import { SHOWCASE } from "@/lib/showcase";
 import type { Lesson } from "@/lib/types";
 import { Button, InlineError, Tag } from "./ui";
 
@@ -40,7 +41,7 @@ function Row({ lesson, onChanged }: { lesson: Lesson; onChanged: () => void }) {
         <input
           type="checkbox"
           checked={lesson.active}
-          disabled={busy}
+          disabled={busy || SHOWCASE}
           onChange={(e) => act(() => updateLesson(lesson.id, { active: e.target.checked }))}
           aria-label={lesson.active ? "Switch this lesson off" : "Switch this lesson on"}
           className="mt-1 size-4 shrink-0 accent-[var(--fg)]"
@@ -96,7 +97,7 @@ function Row({ lesson, onChanged }: { lesson: Lesson; onChanged: () => void }) {
             </p>
           )}
         </div>
-        {!editing && (
+        {!editing && !SHOWCASE && (
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
@@ -178,7 +179,7 @@ export function Lessons({ lessons, limit, onChanged }: { lessons: Lesson[]; limi
         </p>
       )}
 
-      <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
+      <form onSubmit={onSubmit} className={`flex flex-wrap items-center gap-2 ${SHOWCASE ? "hidden" : ""}`}>
         <label htmlFor="new-lesson" className="sr-only">
           A rule for Patch
         </label>

@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { approveProposal, rejectProposal, type ProposalEdits } from "@/lib/api";
 import { shortRepo } from "@/lib/format";
+import { SHOWCASE } from "@/lib/showcase";
 import type { FileItem, ProposalDetail, SweepItem } from "@/lib/types";
 import { Diff } from "./Diff";
 import { Button, InlineError, Tag } from "./ui";
@@ -194,11 +195,13 @@ export function ProposalEditor({ proposal, dryRun }: { proposal: ProposalDetail;
     // On success the page reloads the proposal from the live feed, and this editor goes away.
   }
 
-  const consequence = dryRun
-    ? "Dry-run is on. Approving shows what would happen. Nothing is written to GitHub."
-    : isSweep
-      ? "Approving changes these descriptions and topics on GitHub."
-      : "Approving opens a pull request on GitHub. Nothing reaches your default branch until you merge it.";
+  const consequence = SHOWCASE
+    ? "This is a view-only copy, so nothing can be approved or rejected here. On the working desk, approving with dry-run on only rehearses the change."
+    : dryRun
+      ? "Dry-run is on. Approving shows what would happen. Nothing is written to GitHub."
+      : isSweep
+        ? "Approving changes these descriptions and topics on GitHub."
+        : "Approving opens a pull request on GitHub. Nothing reaches your default branch until you merge it.";
 
   return (
     <div className="flex flex-col gap-6">
@@ -217,12 +220,12 @@ export function ProposalEditor({ proposal, dryRun }: { proposal: ProposalDetail;
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
-            disabled={busy || !anyEnabled}
+            disabled={busy || !anyEnabled || SHOWCASE}
             onClick={() => decide(() => approveProposal(proposal.id, edits()))}
           >
             {busy ? "Working" : dryRun ? "Approve as a rehearsal" : "Approve and apply"}
           </Button>
-          <Button disabled={busy} onClick={() => setRejecting((value) => !value)}>
+          <Button disabled={busy || SHOWCASE} onClick={() => setRejecting((value) => !value)}>
             Reject
           </Button>
           {!anyEnabled && <span className="text-sm text-muted">Everything is switched off.</span>}

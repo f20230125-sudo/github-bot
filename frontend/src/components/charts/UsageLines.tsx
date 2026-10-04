@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
+import { SHOWCASE } from "@/lib/showcase";
 import type { UsageReading } from "@/lib/types";
 import { ChartCard, DataTable, TooltipBox, useWidth, type Tip } from "./kit";
 
@@ -136,7 +137,9 @@ export function UsageLines({
       empty={
         readings.length
           ? null
-          : "No usage reading in this period. The first one comes from Test Claude connection on the Setup page."
+          : SHOWCASE
+            ? "No usage reading in this recording. Claude was switched off when it was taken."
+            : "No usage reading in this period. The first one comes from Test Claude connection on the Setup page."
       }
     >
       <div ref={ref} className="relative" style={{ height: HEIGHT }}>

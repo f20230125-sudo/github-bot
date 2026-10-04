@@ -1,10 +1,11 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
+import { ArrowUpRight, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { setPaused } from "@/lib/api";
+import { REPO_URL, SHOWCASE } from "@/lib/showcase";
 import { useStream } from "./StreamProvider";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -14,6 +15,7 @@ const STATUS_COPY = {
   paused: { label: "Paused", dot: "bg-warning" },
   offline: { label: "API offline", dot: "bg-critical" },
 } as const;
+const VIEW_ONLY = { label: "View-only demo", dot: "bg-neutral" };
 
 const NAV = [
   { href: "/", label: "Floor" },
@@ -68,7 +70,9 @@ function PauseButton() {
 export function Header() {
   const { status, desk } = useStream();
   const pathname = usePathname();
-  const s = STATUS_COPY[status === "live" && desk?.paused ? "paused" : status];
+  const s = SHOWCASE ? VIEW_ONLY : STATUS_COPY[status === "live" && desk?.paused ? "paused" : status];
+  // The view-only copy has nothing to set up.
+  const sections = SHOWCASE ? NAV.filter((item) => item.href !== "/setup") : NAV;
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur">
@@ -83,7 +87,7 @@ export function Header() {
 
         {/* On a narrow screen the sections scroll sideways, so the pause switch never leaves the screen. */}
         <nav aria-label="Sections" className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {NAV.map(({ href, label, also }) => {
+          {sections.map(({ href, label, also }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href) || (also ? pathname.startsWith(also) : false);
             return (
@@ -109,7 +113,19 @@ export function Header() {
             <span className={`inline-block size-2 rounded-full ${s.dot}`} aria-hidden />
             {s.label}
           </span>
-          <PauseButton />
+          {SHOWCASE ? (
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-medium transition hover:bg-surface-2"
+            >
+              Code
+              <ArrowUpRight size={13} aria-hidden />
+            </a>
+          ) : (
+            <PauseButton />
+          )}
           <ThemeToggle />
         </div>
       </div>

@@ -12,6 +12,7 @@ import { Dot, Notice } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
 import { fetchSetup, fetchSheet } from "@/lib/api";
 import { lastFinishedRun, lastOfType } from "@/lib/feed";
+import { SHOWCASE } from "@/lib/showcase";
 import { useApi } from "@/lib/useApi";
 
 function List({ title, items }: { title: string; items: string[] }) {
@@ -138,14 +139,30 @@ export default function PatchPage() {
                   {setup.github.configured
                     ? `Using a token for ${setup.github.user}. What it permits is set on GitHub. `
                     : "No GitHub token: Patch reads public data only and can change nothing. "}
-                  <Link href="/setup" className="underline underline-offset-4">
-                    Token and permissions are on Setup.
-                  </Link>
+                  {!SHOWCASE && (
+                    <Link href="/setup" className="underline underline-offset-4">
+                      Token and permissions are on Setup.
+                    </Link>
+                  )}
                 </p>
               )}
             </section>
 
-            <ClaudePanel />
+            {SHOWCASE ? (
+              <section className="panel flex flex-col gap-3 p-6" aria-label="Claude">
+                <h2 className="font-display text-xl font-semibold tracking-tight">Claude</h2>
+                <p className="text-sm leading-relaxed text-muted">
+                  On the working desk, Patch calls the Claude Code program signed in on its owner&apos;s computer, so
+                  it uses that Claude plan and never an API key. It stops calling Claude once plan usage reaches 40%
+                  of the 5-hour or the weekly limit, and it does not call at all when it cannot read the usage.
+                </p>
+                <p className="text-sm leading-relaxed text-muted">
+                  This copy makes no calls of any kind. Everything on it was recorded.
+                </p>
+              </section>
+            ) : (
+              <ClaudePanel />
+            )}
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { agentMeta } from "@/lib/agents";
 import { fetchChat, sendChat } from "@/lib/api";
 import { clock } from "@/lib/format";
+import { SHOWCASE } from "@/lib/showcase";
 import type { ChatMessage, DeskEvent } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { useStream } from "./StreamProvider";
@@ -106,7 +107,17 @@ export function Chat() {
         </ol>
       )}
 
-      <form onSubmit={onSubmit} className={`flex items-center gap-2 p-3 ${messages.length ? "border-t border-line" : ""}`}>
+      {SHOWCASE && (
+        <p className={`px-5 py-3 text-xs leading-relaxed text-faint ${messages.length ? "border-t border-line" : ""}`}>
+          Chat is switched off in this view-only copy. On the working desk, commands and lookups are answered
+          from stored data, and an open question gets one Claude call.
+        </p>
+      )}
+
+      <form
+        onSubmit={onSubmit}
+        className={`flex items-center gap-2 p-3 ${messages.length ? "border-t border-line" : ""} ${SHOWCASE ? "hidden" : ""}`}
+      >
         <label htmlFor="chat-input" className="sr-only">
           Message for Patch
         </label>
@@ -129,7 +140,7 @@ export function Chat() {
         </button>
       </form>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5">
+      <div className={`flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5 ${SHOWCASE ? "hidden" : ""}`}>
         {SHORTCUTS.map((command) => (
           <button
             key={command}

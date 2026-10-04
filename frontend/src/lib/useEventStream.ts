@@ -2,26 +2,50 @@
 
 import { useEffect, useState } from "react";
 import { API_URL } from "./api";
-import { EVENT_TYPES, type DeskEvent } from "./types";
+import { loadSnapshot, setCursor, SHOWCASE } from "./showcase";
+import { EVENT_TYPES, type DeskEvent, type EventType } from "./types";
 
 export type StreamStatus = "connecting" | "live" | "offline";
+
+/** Controls for the recording, in the view-only build. */
+export type Replay = { playing: boolean; restart: () => void; finish: () => void };
 
 const MAX_EVENTS = 400;
 /** Things worth knowing live but not worth storing: a check that found nothing, the pause switch. */
 const SIGNALS = ["heartbeat", "desk"];
+
+/** How long each kind of step stays on screen before the next one, when the recording plays. */
+const STEP_MS: Partial<Record<EventType, number>> = {
+  "run.started": 350,
+  "run.step": 420,
+  "tool.result": 70,
+  finding: 70,
+  "proposal.created": 220,
+  message: 520,
+  "agent.status": 150,
+  usage: 80,
+  "run.finished": 450,
+};
 
 /**
  * Live feed from the API's server-sent events. The browser reconnects by itself and sends
  * Last-Event-ID, so the server resumes where the page left off and nothing is shown twice.
  *
  * `pulse` goes up each time a signal arrives, so anything showing the desk's state can re-read it.
+ *
+ * The view-only build has no API to listen to. There, the stored events of the snapshot are
+ * played back in order, at a readable pace, as if they were arriving live.
  */
 export function useEventStream() {
   const [events, setEvents] = useState<DeskEvent[]>([]);
   const [status, setStatus] = useState<StreamStatus>("connecting");
   const [pulse, setPulse] = useState(0);
+  // The view-only build: which playthrough this is, and whether to jump straight to the end.
+  const [take, setTake] = useState({ n: 0, toEnd: false });
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
+    if (SHOWCASE) return;
     const source = new EventSource(`${API_URL}/api/stream`);
 
     const onEvent = (message: MessageEvent<string>) => {
@@ -38,5 +62,57 @@ export function useEventStream() {
     return () => source.close();
   }, []);
 
-  return { events, status, pulse };
+  useEffect(() => {
+    if (!SHOWCASE) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    loadSnapshot()
+      .then(({ events: recorded }) => {
+        if (cancelled) return;
+        setStatus("live");
+
+        const end = () => {
+          setCursor(null);
+          setEvents(recorded);
+          setPlaying(false);
+          setPulse((n) => n + 1);
+        };
+        // No animation for people who asked their system for less motion.
+        const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (take.toEnd || still || recorded.length === 0) return end();
+
+        let shown = 0;
+        setCursor({ id: 0, ts: "" });
+        setEvents([]);
+        setPlaying(true);
+        const step = () => {
+          if (cancelled) return;
+          if (shown >= recorded.length) return end();
+          const event = recorded[shown++];
+          setCursor(event);
+          setEvents(recorded.slice(0, shown));
+          timer = setTimeout(step, STEP_MS[event.type] ?? 200);
+        };
+        step();
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("offline");
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [take]);
+
+  const replay: Replay | null = SHOWCASE
+    ? {
+        playing,
+        restart: () => setTake((t) => ({ n: t.n + 1, toEnd: false })),
+        finish: () => setTake((t) => ({ n: t.n + 1, toEnd: true })),
+      }
+    : null;
+
+  return { events, status, pulse, replay };
 }
