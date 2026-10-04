@@ -146,7 +146,7 @@ async def test_the_agent_sheet_says_who_patch_is_and_what_it_may_do(client):
     assert sheet["persona"]["summary"] == "A dry senior engineer. Blunt, precise, deadpan."
     assert "Numbers over adjectives." in sheet["persona"]["rules"] and "amazing" in sheet["persona"]["banned"]
     assert (sheet["persona"]["max_chars"], sheet["persona"]["max_sentences"]) == (240, 3)
-    assert list(sheet["moods"]) == ["irritated", "unimpressed", "proud", "satisfied", "focused"]
+    assert list(sheet["moods"]) == ["happy", "normal", "sad"] and sheet["mood"] == "normal"
 
     assert sheet["writes"][0] == "Set a repository's description" and len(sheet["writes"]) == 7
     assert not any("delete" in write.lower() for write in sheet["writes"])

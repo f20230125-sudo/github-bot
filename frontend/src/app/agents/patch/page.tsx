@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { ClaudePanel } from "@/components/ClaudePanel";
+import { Face } from "@/components/Face";
 import { Lessons } from "@/components/Lessons";
 import { SafetyPanel } from "@/components/SafetyPanel";
 import { useStream } from "@/components/StreamProvider";
-import { Dot, Notice } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
 import { fetchSetup, fetchSheet } from "@/lib/api";
 import { lastFinishedRun, lastOfType } from "@/lib/feed";
@@ -56,7 +57,7 @@ export default function PatchPage() {
               color={meta.color}
               status={sheet.status?.status ?? "idle"}
               text={sheet.status?.text ?? "Idle. Nothing to do."}
-              mood={sheet.mood ?? "focused"}
+              mood={sheet.mood ?? "normal"}
               watch={sheet.watch}
               paused={sheet.paused}
             />
@@ -83,12 +84,12 @@ export default function PatchPage() {
             <section className="panel flex flex-col gap-3 p-6" aria-label="Mood">
               <h2 className="font-display text-xl font-semibold tracking-tight">Mood</h2>
               <p className="text-sm leading-relaxed text-muted">
-                Worked out from the state of your repositories, never random. The first that applies wins.
+                Worked out from the portfolio score, the average health of your repositories. Never random.
               </p>
               <ul className="divide-y divide-line border-y border-line">
                 {Object.entries(sheet.moods).map(([mood, cause]) => (
                   <li key={mood} className="flex items-start gap-3 py-2.5 text-sm">
-                    <span className="mt-1.5 w-2 shrink-0">{mood === sheet.mood && <Dot status="good" />}</span>
+                    <Face mood={mood} color={mood === sheet.mood ? meta.color : "var(--fg-faint)"} size={30} />
                     <span>
                       <span className={`capitalize ${mood === sheet.mood ? "font-semibold" : "text-muted"}`}>
                         {mood}

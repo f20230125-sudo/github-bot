@@ -113,8 +113,8 @@ def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def digest(snapshot: dict[str, Any]) -> str:
     """A fingerprint of what the site shows that is worth a new deployment: scores, findings,
-    proposals, lessons and notes for Pitch. Clock times, request counts and star counts don't count,
-    so a check that changes none of these leaves the published file alone.
+    proposals, lessons, notes for Pitch and Patch's mood. Clock times, request counts and star
+    counts don't count, so a check that changes none of these leaves the published file alone.
 
     Nor does a CI run starting or finishing. CI that begins to fail, or passes again, arrives as a
     finding. What is left is "running" turning into "passing", and the job's own commit, which no
@@ -144,7 +144,8 @@ def digest(snapshot: dict[str, Any]) -> str:
     )
     lessons = [(lesson["text"], lesson["active"]) for lesson in routes["/api/agents/patch"]["lessons"]]
     handoffs = [handoff["text"] for handoff in routes["/api/handoffs"]["handoffs"]]
-    substance = json.dumps([repos, findings, proposals, lessons, handoffs], sort_keys=True, default=str)
+    mood = routes["/api/agents/patch"]["mood"]  # the face Patch wears: it follows the portfolio score
+    substance = json.dumps([repos, findings, proposals, lessons, handoffs, mood], sort_keys=True, default=str)
     return hashlib.sha256(substance.encode()).hexdigest()[:16]
 
 

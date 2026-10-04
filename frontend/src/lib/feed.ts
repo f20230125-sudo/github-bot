@@ -119,11 +119,11 @@ export function agentView(events: DeskEvent[], agent: string): AgentView {
       return {
         status: str(e.payload, "status") ?? "idle",
         text: str(e.payload, "text") ?? "",
-        mood: str(e.payload, "mood") ?? "focused",
+        mood: str(e.payload, "mood") ?? "normal",
       };
     }
   }
-  return { status: "idle", text: "Idle. Nothing to do.", mood: "focused" };
+  return { status: "idle", text: "Idle. Nothing to do.", mood: "normal" };
 }
 
 /** Id of the newest finished run. Pages reload their data when this changes. */

@@ -182,11 +182,7 @@ class PatchAgent:
     # -- voice and mood -----------------------------------------------------------------------
 
     def mood(self) -> str:
-        return compute_mood(
-            self.store.all().values(),
-            self.proposals.list("pending", agent=self.id),
-            score_rose=self.db.get_kv("score_rose") == "1",
-        )
+        return compute_mood(portfolio_summary(self.store.all())["score"])
 
     async def status(self, status: str, text: str) -> None:
         payload = {"status": status, "text": text, "mood": self.mood()}
@@ -461,7 +457,6 @@ class PatchAgent:
 
         stored = self.store.all()
         first_look = not stored
-        before = portfolio_summary(stored)["score"]
         plan = plan_sync(metas, {name: repo.known() for name, repo in stored.items()})
         if force:
             plan.need_details = [m for m in metas if _active(m)]
@@ -529,10 +524,6 @@ class PatchAgent:
         ctx.counters["calls_avoided"] += len(to_check)
 
         summary = portfolio_summary(self.store.all())
-        if to_check or plan.removed:
-            # Mood: a score that went up since the last audit is something to be pleased about.
-            rose = before is not None and summary["score"] is not None and summary["score"] > before
-            self.db.set_kv("score_rose", "1" if rose else "0")
         if summary["score"] is not None and (to_check or plan.removed):
             key = "audit.summary" if summary["findings"] else "audit.summary_clean"
             await ctx.step(
