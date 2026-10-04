@@ -148,6 +148,11 @@ def test_the_template_is_made_of_the_facts_and_nothing_else():
     bare = {"name": "app", "url": "https://github.com/octo/app", "license": "NOASSERTION"}
     assert template_post("launch", bare, {}) == "I built app.\n\nCode: https://github.com/octo/app"
 
+    # A repository description rarely ends with a full stop. A sentence in a post does.
+    assert template_post("launch", facts | {"description": "A small service "}, {}) == template_post("launch", facts, {})
+    linked = template_post("launch", facts | {"description": "Docs at https://docs.example"}, {})
+    assert "Docs at https://docs.example\n" in linked
+
 
 def test_rules_write_the_post_in_every_tone_and_state_only_what_the_checks_found(persona):
     facts = {
