@@ -51,12 +51,24 @@ def meta_from_rest(item: Mapping[str, Any]) -> RepoMeta:
 
 
 async def list_repos(client: GitHubClient, user: str) -> tuple[list[RepoMeta], bool]:
-    """Every repository the user owns, and whether GitHub said the list is unchanged."""
-    if client.authenticated:
-        path, params = "/user/repos", {"affiliation": "owner", "per_page": 100, "sort": "full_name"}
-    else:
-        path, params = f"/users/{user}/repos", {"type": "owner", "per_page": 100, "sort": "full_name"}
-    items, not_modified = await client.get_all(path, params)
+    """Every repository the user owns, and whether GitHub said the list is unchanged.
+
+    Your own token lists private repositories too. Without a token, or with one that isn't yours
+    to list with (the token a GitHub Actions job is given), the public list is used instead.
+    """
+    if not client.public_listing:
+        try:
+            items, not_modified = await client.get_all(
+                "/user/repos", {"affiliation": "owner", "per_page": 100, "sort": "full_name"}
+            )
+            return [meta_from_rest(item) for item in items], not_modified
+        except (RateLimited, AuthError):
+            raise
+        except GitHubError:
+            client.remember_public_listing()  # refused: ask for the public list from now on
+    items, not_modified = await client.get_all(
+        f"/users/{user}/repos", {"type": "owner", "per_page": 100, "sort": "full_name"}
+    )
     return [meta_from_rest(item) for item in items], not_modified
 
 

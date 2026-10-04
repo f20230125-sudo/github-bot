@@ -59,6 +59,20 @@ async def test_summary_says_what_becomes_public(app):
     assert lines[-1] == "no Claude plan usage figures"
 
 
+async def test_the_recording_starts_at_the_latest_audit_that_looked_at_something(app, fake, db):
+    patch = app.state.patch
+    await patch.audit()
+    fake.repos["messy"].description = "Now described."
+    await patch.audit()  # looks at messy again
+    await patch.audit()  # finds nothing: this one alone would make a dull recording
+
+    audits = [e.run_id for e in db.events_after(0, 5000) if e.type == "run.started"]
+    events = (await export_snapshot(app))["events"]
+    started = [e["run_id"] for e in events if e["type"] == "run.started"]
+    assert started == audits[1:]  # the first audit is left out, the idle one after it is kept
+    assert events[0]["type"] == "agent.status" and events[0]["payload"]["status"] == "working"
+
+
 async def test_an_empty_desk_still_exports(app):
     snapshot = await export_snapshot(app)
     assert snapshot["events"] == [] and snapshot["routes"]["/api/repos"]["repos"] == []

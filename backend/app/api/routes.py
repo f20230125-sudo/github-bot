@@ -9,7 +9,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from ..agents.github.client import AuthError, GitHubClient, GitHubError
+from ..agents.github.client import AuthError, GitHubClient, GitHubError, public_listing_only
 from ..bus import EventBus, Signal
 from ..core.envfile import update_env_file
 from ..core.replay import replay_demo
@@ -39,13 +39,20 @@ async def sse_frames(
             yield sse_frame(item)
 
 
+def own_token(state) -> bool:
+    """Whether a token of your own is set: one that can list your repositories. The read-only
+    token a scheduled job on GitHub is given doesn't count. It sees public data only."""
+    token = state.settings.github_token
+    return bool(token) and not public_listing_only(state.db, token)
+
+
 @router.get("/health")
 async def health(request: Request):
     state = request.app.state
     return {
         "status": "ok",
         "dry_run": state.patch.policy.dry_run,
-        "github_configured": bool(state.settings.github_token),
+        "github_configured": own_token(state),
         "github_user": state.settings.github_user,
         "events": state.db.last_id(),
     }
@@ -132,12 +139,13 @@ class TokenBody(BaseModel):
 @router.get("/setup")
 async def setup(request: Request):
     settings = request.app.state.settings
+    configured = own_token(request.app.state)
     return {
         "github": {
-            "configured": bool(settings.github_token),
+            "configured": configured,
             "user": settings.github_user,
             # Without a token Patch can still read public repositories, in more requests.
-            "mode": "token" if settings.github_token else "public",
+            "mode": "token" if configured else "public",
         },
         "dry_run": request.app.state.patch.policy.dry_run,
     }

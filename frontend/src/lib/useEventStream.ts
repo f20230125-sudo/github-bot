@@ -27,6 +27,25 @@ const STEP_MS: Partial<Record<EventType, number>> = {
   "run.finished": 450,
 };
 
+const WATCHED_KEY = "desk-watched-recording";
+
+/** Which recording this browser has already played to the end, if any. */
+function watched(): string | null {
+  try {
+    return localStorage.getItem(WATCHED_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function remember(version: string): void {
+  try {
+    localStorage.setItem(WATCHED_KEY, version);
+  } catch {
+    /* without storage the recording simply plays on every visit */
+  }
+}
+
 /**
  * Live feed from the API's server-sent events. The browser reconnects by itself and sends
  * Last-Event-ID, so the server resumes where the page left off and nothing is shown twice.
@@ -68,7 +87,7 @@ export function useEventStream() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     loadSnapshot()
-      .then(({ events: recorded }) => {
+      .then(({ events: recorded, exported_at: version }) => {
         if (cancelled) return;
         setStatus("live");
 
@@ -77,10 +96,13 @@ export function useEventStream() {
           setEvents(recorded);
           setPlaying(false);
           setPulse((n) => n + 1);
+          remember(version);
         };
-        // No animation for people who asked their system for less motion.
+        // No animation for people who asked their system for less motion, and none for someone
+        // who has already watched this recording: they get the result straight away.
         const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (take.toEnd || still || recorded.length === 0) return end();
+        const seen = take.n === 0 && watched() === version;
+        if (take.toEnd || still || seen || recorded.length === 0) return end();
 
         let shown = 0;
         setCursor({ id: 0, ts: "" });

@@ -18,8 +18,10 @@ from typing import TYPE_CHECKING, Any
 
 from ...core.claude import ClaudeBlocked
 from ...core.claude_cli import ClaudeError
+from ...core.proposals import Proposal
 from ...core.runs import RunContext
 from ...core.text import count
+from ...events import utcnow
 from .client import GitHubClient, GitHubError
 from .drafts import ReadmeDraft, SweepDraft, SweepTarget, sweep_items, verify_readme
 from .fixes import FileFix, ci_fix, gitignore_fix, license_fix, needs_package_json
@@ -118,6 +120,45 @@ async def run_draft(agent: PatchAgent, ctx: RunContext, client: GitHubClient, fo
     else:
         ctx.closing_line = say("draft.done_none")
     return state.created
+
+
+def _still_needed(proposal: Proposal, audited: dict[str, StoredRepo]) -> bool:
+    """Whether any problem a waiting proposal would fix is still there."""
+    if proposal.kind == "pull_request":
+        repo = audited.get(proposal.repo or "")
+        if repo is None:
+            return False  # the repository is gone
+        covered = {check for file in proposal.payload.get("files", []) for check in file.get("findings", [])}
+        return bool(covered & {f.check for f in _file_findings(repo)})
+    if proposal.kind == "metadata_sweep":
+        for item in proposal.payload.get("items", []):
+            repo = audited.get(item["repo"])
+            wants = [check for check in ("description", "topics") if item.get(check)]
+            if repo and any(_has(repo, check) for check in wants):
+                return True
+        return False
+    return True
+
+
+async def settle_fixed(agent: PatchAgent, ctx: RunContext) -> int:
+    """Drop waiting proposals whose problems are already gone, because you fixed them on GitHub
+    yourself. Rules only. Returns how many were dropped."""
+    audited = agent.store.all()
+    dropped = 0
+    for proposal in agent.proposals.list("pending", agent=agent.id):
+        if _still_needed(proposal, audited):
+            continue
+        agent.proposals.update(proposal.id, status="superseded", result={"fixed_elsewhere": True, "at": utcnow()})
+        await ctx.emit(
+            "proposal.resolved",
+            {
+                "proposal_id": proposal.id, "kind": proposal.kind, "title": proposal.title,
+                "decision": "fixed", "edited": 0, "text": agent.persona.line("draft.fixed_elsewhere"),
+            },
+            repo=proposal.repo,
+        )  # fmt: skip
+        dropped += 1
+    return dropped
 
 
 def _has(repo: StoredRepo, check: str) -> bool:

@@ -1,13 +1,13 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight } from "lucide-react";
 import { useState } from "react";
 import { approveProposal, rejectProposal, type ProposalEdits } from "@/lib/api";
 import { shortRepo } from "@/lib/format";
-import { SHOWCASE } from "@/lib/showcase";
+import { editFileUrl, newFileUrl, SHOWCASE } from "@/lib/showcase";
 import type { FileItem, ProposalDetail, SweepItem } from "@/lib/types";
 import { Diff } from "./Diff";
-import { Button, InlineError, Tag } from "./ui";
+import { Button, CopyButton, InlineError, Tag } from "./ui";
 
 const FIELD =
   "w-full rounded-xl border border-line-strong bg-sunken px-3 py-2 text-sm outline-offset-2 placeholder:text-faint disabled:opacity-50";
@@ -75,6 +75,23 @@ function SweepRows({ rows, onChange }: { rows: SweepRow[]; onChange: (rows: Swee
                 />
               </label>
             )}
+
+            {SHOWCASE && (
+              // Descriptions and topics have no fill-in page on GitHub: copy them, then paste them there.
+              <div className="flex flex-wrap items-center gap-3">
+                {row.description !== null && <CopyButton value={row.description} label="Copy the description" />}
+                {row.topics !== null && <CopyButton value={row.topics} label="Copy the topics" />}
+                <a
+                  href={`https://github.com/${row.item.repo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={OUT_LINK}
+                >
+                  Open the repository
+                  <ArrowUpRight size={13} aria-hidden />
+                </a>
+              </div>
+            )}
           </li>
         );
       })}
@@ -82,7 +99,58 @@ function SweepRows({ rows, onChange }: { rows: SweepRow[]; onChange: (rows: Swee
   );
 }
 
-function FileRows({ rows, onChange }: { rows: FileRow[]; onChange: (rows: FileRow[]) => void }) {
+const OUT_LINK = "inline-flex items-center gap-1.5 text-sm underline underline-offset-4";
+
+/**
+ * The view-only site can't change anything. Instead, this opens GitHub's own editor with the file
+ * already filled in. Committing there is the owner's click, made while signed in to GitHub.
+ */
+function ApplyOnGitHub({ repo, branch, row }: { repo: string; branch: string; row: FileRow }) {
+  const { path, is_new: isNew } = row.file;
+  const filled = isNew ? newFileUrl(repo, branch, path, row.content) : null;
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {filled ? (
+        <a
+          href={filled}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full bg-fg px-4 py-2 text-sm font-medium text-bg transition hover:opacity-90"
+        >
+          Create this file on GitHub
+          <ArrowUpRight size={14} aria-hidden />
+        </a>
+      ) : (
+        <>
+          {/* Too long to travel in an address, or a change to an existing file: copy it, then paste it there. */}
+          <CopyButton value={row.content} label="Copy the new content" />
+          <a
+            href={isNew ? `https://github.com/${repo}/new/${branch}?filename=${encodeURIComponent(path)}` : editFileUrl(repo, branch, path)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={OUT_LINK}
+          >
+            {isNew ? "Open a new file on GitHub" : "Open the file on GitHub"}
+            <ArrowUpRight size={13} aria-hidden />
+          </a>
+        </>
+      )}
+      <span className="text-xs text-faint">Only the repository&apos;s owner can commit it.</span>
+    </div>
+  );
+}
+
+function FileRows({
+  rows,
+  onChange,
+  repo,
+  branch,
+}: {
+  rows: FileRow[];
+  onChange: (rows: FileRow[]) => void;
+  repo?: string;
+  branch: string;
+}) {
   const update = (index: number, change: Partial<FileRow>) =>
     onChange(rows.map((row, i) => (i === index ? { ...row, ...change } : row)));
 
@@ -96,12 +164,15 @@ function FileRows({ rows, onChange }: { rows: FileRow[]; onChange: (rows: FileRo
             <div className="flex flex-col gap-3 p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={row.enabled}
-                    onChange={(e) => update(index, { enabled: e.target.checked })}
-                    className="size-4 accent-[var(--fg)]"
-                  />
+                  {/* Switching a file off only matters where there is something to approve. */}
+                  {!SHOWCASE && (
+                    <input
+                      type="checkbox"
+                      checked={row.enabled}
+                      onChange={(e) => update(index, { enabled: e.target.checked })}
+                      className="size-4 accent-[var(--fg)]"
+                    />
+                  )}
                   <span className="font-mono text-sm">{file.path}</span>
                 </label>
                 <Tag>{file.source === "template" ? "Template" : "Written by Claude"}</Tag>
@@ -117,6 +188,7 @@ function FileRows({ rows, onChange }: { rows: FileRow[]; onChange: (rows: FileRo
                   {file.note}
                 </p>
               )}
+              {SHOWCASE && repo && <ApplyOnGitHub repo={repo} branch={branch} row={row} />}
             </div>
 
             <div className={`border-t border-line ${row.enabled ? "" : "opacity-50"}`}>
@@ -130,7 +202,11 @@ function FileRows({ rows, onChange }: { rows: FileRow[]; onChange: (rows: FileRo
                   className="block w-full resize-y bg-sunken p-4 font-mono text-xs leading-relaxed outline-none"
                 />
               ) : edited ? (
-                <p className="px-5 py-3 text-sm text-muted">You edited this file. Your version is what gets approved.</p>
+                <p className="px-5 py-3 text-sm text-muted">
+                  {SHOWCASE
+                    ? "You edited this file. The button above uses your version."
+                    : "You edited this file. Your version is what gets approved."}
+                </p>
               ) : (
                 <Diff lines={file.diff} />
               )}
@@ -195,17 +271,39 @@ export function ProposalEditor({ proposal, dryRun }: { proposal: ProposalDetail;
     // On success the page reloads the proposal from the live feed, and this editor goes away.
   }
 
-  const consequence = SHOWCASE
-    ? "This is a view-only copy, so nothing can be approved or rejected here. On the working desk, approving with dry-run on only rehearses the change."
-    : dryRun
-      ? "Dry-run is on. Approving shows what would happen. Nothing is written to GitHub."
-      : isSweep
-        ? "Approving changes these descriptions and topics on GitHub."
-        : "Approving opens a pull request on GitHub. Nothing reaches your default branch until you merge it.";
+  const consequence = dryRun
+    ? "Dry-run is on. Approving shows what would happen. Nothing is written to GitHub."
+    : isSweep
+      ? "Approving changes these descriptions and topics on GitHub."
+      : "Approving opens a pull request on GitHub. Nothing reaches your default branch until you merge it.";
+
+  const rows = isSweep ? (
+    <SweepRows rows={sweep} onChange={setSweep} />
+  ) : (
+    <FileRows
+      rows={files}
+      onChange={setFiles}
+      repo={proposal.payload.repo ?? proposal.repo ?? undefined}
+      branch={proposal.payload.base_branch ?? "main"}
+    />
+  );
+
+  if (SHOWCASE) {
+    return (
+      <div className="flex flex-col gap-6">
+        {rows}
+        <section className="panel p-5 text-sm leading-relaxed text-muted" aria-label="How to make this change">
+          This site cannot change anything. To make a change, use the button on it above: GitHub opens with the change
+          filled in, and you commit it there. Only the repository&apos;s owner can. At its next check, Patch sees the
+          fix and drops this suggestion.
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      {isSweep ? <SweepRows rows={sweep} onChange={setSweep} /> : <FileRows rows={files} onChange={setFiles} />}
+      {rows}
 
       {(proposal.payload.notes ?? []).length > 0 && (
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted">
@@ -220,12 +318,12 @@ export function ProposalEditor({ proposal, dryRun }: { proposal: ProposalDetail;
         <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="primary"
-            disabled={busy || !anyEnabled || SHOWCASE}
+            disabled={busy || !anyEnabled}
             onClick={() => decide(() => approveProposal(proposal.id, edits()))}
           >
             {busy ? "Working" : dryRun ? "Approve as a rehearsal" : "Approve and apply"}
           </Button>
-          <Button disabled={busy || SHOWCASE} onClick={() => setRejecting((value) => !value)}>
+          <Button disabled={busy} onClick={() => setRejecting((value) => !value)}>
             Reject
           </Button>
           {!anyEnabled && <span className="text-sm text-muted">Everything is switched off.</span>}

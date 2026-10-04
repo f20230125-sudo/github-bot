@@ -32,7 +32,7 @@ from .chat import run_chat
 from .checks import CHECKS_VERSION, build_report
 from .client import ALLOWED_WRITES, NEVER, AuthError, GitHubClient, GitHubError, RateLimited, RequestInfo
 from .decisions import DecisionError, apply_edits
-from .drafting import run_draft
+from .drafting import run_draft, settle_fixed
 from .handoffs import Handoff, listing_news, repo_news
 from .learning import feedback_of, run_learn
 from .models import RepoDetails, RepoMeta, RepoReport, RepoSnapshot
@@ -519,6 +519,9 @@ class PatchAgent:
                 if not first_look:  # the first audit is the baseline: nothing in it is news
                     news += repo_news(old, report)
         self.db.set_kv("checks_version", str(CHECKS_VERSION))
+        if to_check or plan.removed:
+            # Something you fixed on GitHub yourself no longer needs my proposal for it.
+            ctx.counters["proposals_dropped"] += await settle_fixed(self, ctx)
 
         # Every repository checked by rules is a model call a naive agent would have made.
         ctx.counters["repos_checked"] += len(to_check)

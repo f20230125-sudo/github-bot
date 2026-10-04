@@ -106,7 +106,16 @@ export type ProposalCard = {
   created_at: string;
   updated_at: string;
   decision: { action: string; at: string; reason?: string; edits?: unknown[] } | null;
-  result: { dry_run: boolean; at: string; actions: ActionResult[]; url?: string; number?: number; stale?: boolean } | null;
+  result: {
+    dry_run?: boolean;
+    at: string;
+    actions?: ActionResult[];
+    url?: string;
+    number?: number;
+    stale?: boolean;
+    /** You fixed it on GitHub yourself, so Patch dropped the proposal. */
+    fixed_elsewhere?: boolean;
+  } | null;
 };
 
 export type SweepItem = {

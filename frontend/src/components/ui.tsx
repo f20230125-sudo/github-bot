@@ -1,5 +1,7 @@
-import { AlertTriangle } from "lucide-react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+"use client";
+
+import { AlertTriangle, Copy } from "lucide-react";
+import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { plural, scoreStatus, SEVERITY_STATUS, statusColor, type Status } from "@/lib/format";
 import { SEVERITIES, type Severity } from "@/lib/types";
 
@@ -88,6 +90,22 @@ export function Button({ variant = "ghost", className = "", type = "button", ...
       className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${look} ${className}`}
       {...props}
     />
+  );
+}
+
+/** Copies text to the clipboard and says so. */
+export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+      }}
+    >
+      <Copy size={13} aria-hidden />
+      {copied ? "Copied" : label}
+    </Button>
   );
 }
 

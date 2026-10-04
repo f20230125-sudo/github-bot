@@ -144,6 +144,20 @@ class RequestInfo:
 Observer = Callable[[RequestInfo], Awaitable[None]]
 
 
+def _identity(token: str | None) -> str:
+    """A name for whoever is asking, safe to store: never the token itself."""
+    return f"tok-{hashlib.sha256(token.encode()).hexdigest()[:12]}" if token else "anon"
+
+
+def _listing_key(token: str) -> str:
+    return f"github.public_listing.{_identity(token)}"
+
+
+def public_listing_only(db: Database, token: str | None) -> bool:
+    """Whether this token turned out to be unable to list your repositories, private ones included."""
+    return bool(token) and db.get_kv(_listing_key(token)) == "1"
+
+
 class GitHubClient:
     def __init__(
         self,
@@ -153,7 +167,7 @@ class GitHubClient:
     ):
         self._db = db
         self._token = token or None
-        self._identity = f"tok-{hashlib.sha256(token.encode()).hexdigest()[:12]}" if token else "anon"
+        self._identity = _identity(self._token)
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -168,6 +182,16 @@ class GitHubClient:
     @property
     def authenticated(self) -> bool:
         return self._token is not None
+
+    # A token can be valid and still not be yours to list repositories with: the token a GitHub
+    # Actions job is given is one. Once GitHub has refused that, the public list is used from then on.
+
+    @property
+    def public_listing(self) -> bool:
+        return not self._token or public_listing_only(self._db, self._token)
+
+    def remember_public_listing(self) -> None:
+        self._db.set_kv(_listing_key(self._token or ""), "1")
 
     async def aclose(self) -> None:
         await self._http.aclose()

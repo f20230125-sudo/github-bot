@@ -1,27 +1,12 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, XCircle } from "lucide-react";
+import { ArrowUpRight, Check, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { applyProposal } from "@/lib/api";
 import { shortDate, shortRepo } from "@/lib/format";
 import type { ActionResult, ProposalDetail } from "@/lib/types";
-import { Button, InlineError, Tag } from "./ui";
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      onClick={async () => {
-        await navigator.clipboard.writeText(value);
-        setCopied(true);
-      }}
-    >
-      <Copy size={13} aria-hidden />
-      {copied ? "Copied" : "Copy"}
-    </Button>
-  );
-}
+import { Button, CopyButton, InlineError, Tag } from "./ui";
 
 function ActionRow({ action }: { action: ActionResult }) {
   const Icon = action.ok ? Check : XCircle;
@@ -97,9 +82,14 @@ export function ProposalOutcome({ proposal, dryRun }: { proposal: ProposalDetail
     <div className="flex flex-col gap-6">
       <section className="panel flex flex-col gap-3 p-5" aria-label="Decision">
         <p className="font-medium">
-          {STATUS_COPY[proposal.status] ?? proposal.status}
+          {result?.fixed_elsewhere ? "Fixed on GitHub" : (STATUS_COPY[proposal.status] ?? proposal.status)}
           {decision?.at && <span className="ml-2 text-sm font-normal text-faint">{shortDate(decision.at)}</span>}
         </p>
+        {result?.fixed_elsewhere && (
+          <p className="text-sm text-muted">
+            The problems this would have fixed were gone at the next check, so Patch dropped it.
+          </p>
+        )}
         {decision?.reason && <p className="text-sm text-muted">Your reason: {decision.reason}</p>}
         {(decision?.edits?.length ?? 0) > 0 && <p className="text-sm text-muted">You edited it before approving.</p>}
         {result?.stale && (
@@ -130,7 +120,7 @@ export function ProposalOutcome({ proposal, dryRun }: { proposal: ProposalDetail
         )}
       </section>
 
-      {result && result.actions.length > 0 && (
+      {result?.actions && result.actions.length > 0 && (
         <section aria-label="What happened">
           <h2 className="eyebrow mb-3">{result.dry_run ? "What would happen" : "What happened"}</h2>
           <ul className="panel divide-y divide-line overflow-hidden">

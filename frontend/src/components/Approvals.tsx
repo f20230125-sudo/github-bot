@@ -4,6 +4,7 @@ import Link from "next/link";
 import { fetchProposals } from "@/lib/api";
 import { lastProposalEvent } from "@/lib/feed";
 import { plural, shortRepo } from "@/lib/format";
+import { SHOWCASE } from "@/lib/showcase";
 import type { ProposalCard } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 import { useStream } from "./StreamProvider";
@@ -37,7 +38,10 @@ export function Approvals() {
 
   return (
     <section className="panel p-5" aria-label="Approvals">
-      <h2 className="eyebrow">Waiting for you</h2>
+      <h2 className="eyebrow">{SHOWCASE ? "Suggestions" : "Waiting for you"}</h2>
+      {SHOWCASE && pending.length > 0 && (
+        <p className="mt-2 text-xs leading-relaxed text-faint">Open one to make the change on GitHub.</p>
+      )}
       {pending.length ? (
         <ul className="mt-3 flex flex-col gap-2">
           {pending.map((proposal) => (
@@ -45,7 +49,7 @@ export function Approvals() {
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-sm text-muted">Nothing to approve.</p>
+        <p className="mt-3 text-sm text-muted">{SHOWCASE ? "Nothing to suggest right now." : "Nothing to approve."}</p>
       )}
 
       {rehearsed.length > 0 && (
