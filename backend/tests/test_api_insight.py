@@ -153,7 +153,7 @@ async def test_the_agent_sheet_says_who_patch_is_and_what_it_may_do(client):
     assert sheet["never"][0] == "Delete a repository, a branch or a file"
     assert sheet["lessons"] == [] and sheet["lesson_limit"] == 12 and sheet["watch"]["enabled"] is True
 
-    assert (await client.get("/api/agents/pitch")).status_code == 404  # a seat, not an agent
+    assert (await client.get("/api/agents/nobody")).status_code == 404
 
 
 # -- lessons ----------------------------------------------------------------------------------

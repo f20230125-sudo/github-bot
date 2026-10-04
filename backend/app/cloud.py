@@ -29,7 +29,8 @@ from .showcase import DEFAULT_OUT, digest, export_snapshot, summary
 
 
 async def run_check(app: FastAPI) -> dict[str, Any]:
-    """Look at GitHub once, and draft what templates can fix if anything changed.
+    """Look at GitHub once, draft what templates can fix if anything changed, and let Pitch read
+    any note Patch left.
 
     Returns {"changed": whether anything on GitHub changed, "error": why the look failed, if it did}.
     """
@@ -47,6 +48,9 @@ async def run_check(app: FastAPI) -> dict[str, Any]:
             error = str(finished.payload.get("text"))
     if check["changed"] and not error:
         await patch.draft()  # Claude is not installed here, so only template fixes are drafted
+    if not error:
+        # Pitch reads whatever Patch left it. Rules only, and silent when there is nothing new.
+        await app.state.pitch.read()
     return {"changed": bool(check["changed"]), "error": error}
 
 

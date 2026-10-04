@@ -27,6 +27,8 @@ class JobQueue:
         self._worker: asyncio.Task[None] | None = None
         self.current: str | None = None
         self.paused = paused
+        # Called with a job's key once it has ended, so one agent's work can lead to another's.
+        self.after: Callable[[str], None] | None = None
 
     def submit(self, key: str, factory: JobFactory) -> bool:
         """Queue a job. Returns False if the same job is already waiting or running."""
@@ -71,13 +73,26 @@ class JobQueue:
         while True:
             key, factory = await self._queue.get()
             self.current = key
+            stopped = False
             try:
                 await factory()
             except asyncio.CancelledError:
+                stopped = True
                 raise
             except Exception:
                 log.exception("Job %s failed", key)
             finally:
                 self._keys.discard(key)
                 self.current = None
+                # Before the job counts as done: whoever waits in join() waits for what follows too.
+                if self.after and not stopped:
+                    self._follow(key)
                 self._queue.task_done()
+
+    def _follow(self, key: str) -> None:
+        try:
+            self.after(key)
+        except Paused:
+            pass  # paused in the meantime: nothing follows
+        except Exception:
+            log.exception("What follows %s could not be queued", key)

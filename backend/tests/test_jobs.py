@@ -99,6 +99,52 @@ async def test_pause_stops_the_running_job_drops_the_rest_and_refuses_new_work()
     assert log == ["cancelled", "ran"]  # the job that was waiting when paused never ran
 
 
+async def test_one_job_can_lead_to_another_and_join_waits_for_both():
+    queue = JobQueue()
+    ran: list[str] = []
+
+    async def job(name: str) -> None:
+        await asyncio.sleep(0.01)
+        ran.append(name)
+
+    def after(finished: str) -> None:
+        if finished == "first":
+            queue.submit("second", lambda: job("second"))
+
+    queue.after = after
+    queue.submit("first", lambda: job("first"))
+    await queue.join()
+    assert ran == ["first", "second"]  # join did not return in the gap between the two
+
+
+async def test_nothing_follows_a_job_that_was_stopped_and_a_refusal_does_no_harm():
+    queue = JobQueue()
+    followed: list[str] = []
+    started = asyncio.Event()
+
+    async def long() -> None:
+        started.set()
+        await asyncio.sleep(30)
+
+    async def quick() -> None:
+        pass
+
+    def after(finished: str) -> None:
+        followed.append(finished)
+        raise Paused("refused")  # what submit raises when the desk was paused in the meantime
+
+    queue.after = after
+    queue.submit("long", long)
+    await started.wait()
+    await queue.pause()
+    assert followed == []  # the pause stopped it: nothing is queued behind it
+
+    queue.resume()
+    queue.submit("quick", quick)
+    await queue.join()
+    assert followed == ["quick"] and queue.current is None  # the refusal was swallowed, the queue lives
+
+
 async def test_scheduler_ticks_and_keeps_its_clock_while_paused():
     queue = JobQueue()
     ticks: list[int] = []

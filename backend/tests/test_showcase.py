@@ -47,7 +47,7 @@ async def test_snapshot_has_no_running_clock_and_nothing_in_progress(app):
 
     assert "watch" not in patch and "watch" not in routes["/api/agents/patch"]
     assert routes["/api/agents"]["current"] is None and routes["/api/chat?limit=30"]["busy"] is False
-    assert pitch == {"id": "pitch", "name": "Pitch", "role": "LinkedIn writer", "hired": False}
+    assert (pitch["id"], pitch["hired"]) == ("pitch", True) and routes["/api/agents/pitch"]["never"]
     assert [m["from"] for m in routes["/api/chat?limit=30"]["messages"]] == ["you", "patch"]
 
 

@@ -123,11 +123,15 @@ function upTo(path: string, answer: unknown): unknown {
   return answer;
 }
 
-/** The snapshot's answer for a request path, or undefined if the snapshot doesn't hold it. */
-export async function showcaseGet(path: string): Promise<unknown> {
+/**
+ * The snapshot's answer for a request path, or undefined if the snapshot doesn't hold it.
+ * `whole` gives the answer as it stood at the end, whatever point the replay has reached: for a
+ * page that is not part of what the recording plays back.
+ */
+export async function showcaseGet(path: string, whole = false): Promise<unknown> {
   const snapshot = await loadSnapshot();
   const answer = snapshot.routes[path] ?? snapshot.routes[decodeURIComponent(path)];
-  return answer === undefined ? undefined : upTo(path, answer);
+  return answer === undefined || whole ? answer : upTo(path, answer);
 }
 
 // -- the scheduled check ----------------------------------------------------------------------

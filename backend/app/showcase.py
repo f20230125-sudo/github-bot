@@ -34,6 +34,7 @@ PAGES = (
     "/api/policy",
     "/api/agents",
     "/api/agents/patch",
+    "/api/agents/pitch",
     "/api/repos",
     "/api/proposals?status=all",
     "/api/chat?limit=30",
@@ -113,8 +114,9 @@ def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def digest(snapshot: dict[str, Any]) -> str:
     """A fingerprint of what the site shows that is worth a new deployment: scores, findings,
-    proposals, lessons, notes for Pitch and Patch's mood. Clock times, request counts and star
-    counts don't count, so a check that changes none of these leaves the published file alone.
+    proposals, lessons, notes for Pitch with its verdict on each, and Patch's mood. Clock times,
+    request counts and star counts don't count, so a check that changes none of these leaves the
+    published file alone.
 
     Nor does a CI run starting or finishing. CI that begins to fail, or passes again, arrives as a
     finding. What is left is "running" turning into "passing", and the job's own commit, which no
@@ -143,7 +145,8 @@ def digest(snapshot: dict[str, Any]) -> str:
         if path.startswith("/api/proposals/") and answer["status"] == "pending"
     )
     lessons = [(lesson["text"], lesson["active"]) for lesson in routes["/api/agents/patch"]["lessons"]]
-    handoffs = [handoff["text"] for handoff in routes["/api/handoffs"]["handoffs"]]
+    # A note for Pitch, and whether Pitch finds enough in it for a post.
+    handoffs = [(handoff["text"], handoff["brief"]["ready"]) for handoff in routes["/api/handoffs"]["handoffs"]]
     mood = routes["/api/agents/patch"]["mood"]  # the face Patch wears: it follows the portfolio score
     substance = json.dumps([repos, findings, proposals, lessons, handoffs, mood], sort_keys=True, default=str)
     return hashlib.sha256(substance.encode()).hexdigest()[:16]
@@ -160,6 +163,7 @@ def summary(snapshot: dict[str, Any]) -> list[str]:
         f"{len(routes['/api/repos']['repos'])} repositories with their scores and findings",
         f"{len(routes['/api/proposals?status=all']['proposals'])} proposals, with the full text of every file in them",
         f"{len(chat)} chat messages, word for word",
+        f"{len(routes['/api/handoffs']['handoffs'])} notes for Pitch, with what a post may state about each",
         f"{len(routes['/api/agents/patch']['lessons'])} lessons",
         "your Claude plan usage percentages" if reported else "no Claude plan usage figures",
     ]

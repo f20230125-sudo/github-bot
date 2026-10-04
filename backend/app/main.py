@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .agents.github.agent import PatchAgent
-from .agents.linkedin import PITCH
+from .agents.linkedin.agent import PitchAgent
 from .api.desk import router as desk_router
 from .api.insight import router as insight_router
 from .api.proposals import router as proposals_router
@@ -81,10 +81,20 @@ def create_app(
     patch = PatchAgent(settings, app.state.db, app.state.bus, app.state.claude, transport=github_transport)
     app.state.patch = patch
     app.state.proposals = patch.proposals
+    # Pitch learns about the repositories by asking Patch, never by going to GitHub itself.
+    pitch = PitchAgent(app.state.db, app.state.bus, source=patch)
+    app.state.pitch = pitch
     app.state.agents = AgentRegistry()
     app.state.agents.register(patch)
-    app.state.agents.reserve(PITCH)
+    app.state.agents.register(pitch)
     app.state.desk = Desk(app.state.db, app.state.bus, app.state.jobs, app.state.agents)
+
+    def then_pitch(finished: str) -> None:
+        # Whatever Patch just did may have left Pitch a note, or changed what an older note is about.
+        if finished.startswith(f"{patch.id}."):
+            app.state.jobs.submit("pitch.read", pitch.read)
+
+    app.state.jobs.after = then_pitch
 
     def watch_interval() -> float:
         return settings.watch_interval if settings.github_token else settings.watch_interval_public

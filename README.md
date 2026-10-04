@@ -3,8 +3,9 @@
 One website where you watch AI agents look after your online presence, step by step.
 
 The first agent is **Patch**. It looks after a GitHub account: it audits every repository, drafts
-fixes, and applies them only after you approve. A second seat is reserved for **Pitch**, a LinkedIn
-agent that has not been built yet. Patch already leaves notes for it.
+fixes, and applies them only after you approve. The second is **Pitch**, the LinkedIn agent. So far
+it reads: Patch leaves it a note when something is worth a post, and Pitch says whether there is
+enough for one. It does not write posts yet, and it never touches LinkedIn itself.
 
 Everything runs on your own machine. Patch's writing is done by Claude through the Claude Code
 program you are already signed in to, so it uses your Claude plan. There is no API key and nothing
@@ -38,6 +39,20 @@ and 0 model calls.
 | Watch | Every few minutes, one request asks whether anything changed. If nothing did, nothing else happens | No |
 | Chat | Answers you on the site. Commands and lookups come from stored data | Only for open questions |
 | Learn | Turns a rejection with a reason, or an edit you made, into a short rule for later drafts | One small call |
+
+## What Pitch does
+
+| Job | What happens | Uses Claude? |
+|---|---|---|
+| Read notes | When Patch finishes a job, Pitch reads any note Patch left, asks Patch for the facts behind it, and answers: enough for a post, or not yet and why | No |
+
+A note has enough for a post when the repository says what it is and scores 80 or more. Pitch
+lists what a post may state (what it is, the score, what it is built with, the license, the links,
+a picture from the README), and only those facts may appear in one. A note is answered once, and
+again only if its verdict changes. With nothing new, Pitch does nothing at all.
+
+Pitch has no access to LinkedIn. It cannot sign in, post, comment, message, or read a feed or a
+profile, and it holds no LinkedIn password or token. Pressing Post will always be yours.
 
 ## How it stays cheap
 
@@ -137,10 +152,11 @@ only grant it if you are comfortable with that.
 
 | Page | Shows |
 |---|---|
-| Floor | Each agent's status, the live feed of every step, chat, approvals, and notes waiting for Pitch |
+| Floor | Each agent's status, the live feed of every step, chat, approvals, and Patch's notes for Pitch |
 | Repos | A scorecard for each repository, with findings and score history |
 | Metrics | Requests per day, tokens by job, plan usage against the stop, and every run |
 | Patch | Its voice, mood, what it has learned from you, and exactly what it may change |
+| Pitch | Each note from Patch with Pitch's verdict and the facts a post may state, and what Pitch can never do |
 | Setup | The GitHub token, the Claude connection test, and the safety switches |
 
 Opening a run shows its trace: every request and call it made, with a replay.
@@ -172,7 +188,7 @@ token, the button points to the job's page on GitHub instead.
 
 The job has no Claude, so it suggests only what rules and templates can write: licenses,
 `.gitignore` files and CI workflows. Descriptions, topics and README rewrites come from the desk
-on the owner's machine.
+on the owner's machine. Pitch's reading of Patch's notes needs no model, so it runs in the job too.
 
 To set it up for your own account: import the repository in Vercel, choose the `frontend` folder,
 and deploy. On Vercel the view-only build is the default (`NEXT_PUBLIC_SHOWCASE=1` selects it
@@ -197,7 +213,7 @@ backend/app/
   core/                              shared by every agent: runs, jobs, scheduler, pause,
                                      the Claude runner, the usage stop, chat, lessons, proposals
   agents/github/                     Patch: client, sync, checks, drafts, actions, handoffs, chat
-  agents/linkedin/                   Pitch's reserved seat
+  agents/linkedin/                   Pitch: reads Patch's notes and says which have enough for a post
   api/                               the HTTP endpoints
 backend/tests/                       a stand-in GitHub and a stand-in Claude; nothing real is called
 frontend/src/                        the site: app/ (pages), components/, lib/
@@ -240,8 +256,8 @@ its own API key.
 
 ## Not built yet
 
-The LinkedIn agent, pull request review, release notes, a profile README, a weekly digest, and
-pull requests that change code.
+Pitch writing the posts (so far it only reads), pull request review, release notes, a profile
+README, a weekly digest, and pull requests that change code.
 
 ## License
 

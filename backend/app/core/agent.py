@@ -1,15 +1,12 @@
-"""What every agent on the desk looks like. The LinkedIn agent will implement the same shape."""
+"""What every agent on the desk looks like."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import Any, Protocol
 
 from .persona import Persona
-
-if TYPE_CHECKING:
-    from .desk import Desk
 
 Job = Callable[[], Awaitable[None]]
 
@@ -22,12 +19,12 @@ class Agent(Protocol):
         """The work this agent can be asked to do, by name."""
         ...
 
-    async def settle(self) -> None:
-        """Publish what the agent is doing now that nothing is running: paused, waiting on you, or idle."""
+    def card(self) -> dict[str, Any]:
+        """What the site shows about the agent right now: who it is, its mood, its last status."""
         ...
 
-    async def chat(self, text: str, desk: Desk) -> None:
-        """Answer a message typed on the site."""
+    async def settle(self) -> None:
+        """Publish what the agent is doing now that nothing is running: paused, waiting on you, or idle."""
         ...
 
 

@@ -8,6 +8,7 @@ import type {
   Handoff,
   Lesson,
   Metrics,
+  PitchSheet,
   Policy,
   Portfolio,
   ProposalCard,
@@ -39,13 +40,13 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, whole = false): Promise<T> {
   if (SHOWCASE) {
     // The view-only build has no backend. Reads come from the snapshot, and nothing can be changed.
     if (init?.method && init.method !== "GET") {
       throw new ApiError(403, "This is a view-only copy. Nothing can be changed here.");
     }
-    const answer = await showcaseGet(path);
+    const answer = await showcaseGet(path, whole);
     if (answer === undefined) throw new ApiError(404, "That isn't part of this snapshot.");
     return answer as T;
   }
@@ -155,6 +156,10 @@ export const fetchChat = (signal?: AbortSignal) =>
 
 export const fetchHandoffs = (signal?: AbortSignal) => request<{ handoffs: Handoff[] }>("/api/handoffs", { signal });
 
+/** Every note, for Pitch's own page. On the Floor of the view-only copy, notes appear as the recording reaches them. */
+export const fetchNotes = (signal?: AbortSignal) =>
+  request<{ handoffs: Handoff[] }>("/api/handoffs", { signal }, true);
+
 // -- looking back: metrics, runs, Patch's page ------------------------------------------------
 
 export const fetchMetrics = (days: number, signal?: AbortSignal) =>
@@ -167,6 +172,8 @@ export const fetchRun = (runId: string, signal?: AbortSignal) =>
   request<{ run: RunSummary; events: DeskEvent[] }>(`/api/runs/${encodeURIComponent(runId)}`, { signal });
 
 export const fetchSheet = (signal?: AbortSignal) => request<AgentSheet>("/api/agents/patch", { signal });
+
+export const fetchPitch = (signal?: AbortSignal) => request<PitchSheet>("/api/agents/pitch", { signal });
 
 export const addLesson = (text: string) =>
   request<Lesson>("/api/lessons", { method: "POST", headers: WRITE_JSON, body: JSON.stringify({ text }) });

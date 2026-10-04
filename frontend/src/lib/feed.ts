@@ -111,8 +111,11 @@ function findRepoBlock(rows: RunRow[], repo: string | null): RepoBlock | undefin
 
 export type AgentView = { status: string; text: string; mood: string };
 
-/** Latest status line an agent reported. */
-export function agentView(events: DeskEvent[], agent: string): AgentView {
+/**
+ * Latest status line an agent reported. `known` is the last one the desk has on record, for when
+ * the events on hand don't reach back that far.
+ */
+export function agentView(events: DeskEvent[], agent: string, known?: AgentView | null): AgentView {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.agent === agent && e.type === "agent.status") {
@@ -123,7 +126,7 @@ export function agentView(events: DeskEvent[], agent: string): AgentView {
       };
     }
   }
-  return { status: "idle", text: "Idle. Nothing to do.", mood: "normal" };
+  return known ?? { status: "idle", text: "Idle. Nothing to do.", mood: "normal" };
 }
 
 /** Id of the newest finished run. Pages reload their data when this changes. */
