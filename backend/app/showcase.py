@@ -52,6 +52,11 @@ def _without_clock(card: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in card.items() if key != "watch"}
 
 
+def _settled(repo: dict[str, Any]) -> dict[str, Any]:
+    """"CI running" is true for a few minutes and a snapshot is read for hours: say nothing instead."""
+    return {**repo, "ci_state": None} if repo.get("ci_state") == "pending" else repo
+
+
 async def export_snapshot(app: FastAPI) -> dict[str, Any]:
     """Everything the view-only site shows, as {exported_at, events, routes: {path: answer}}."""
     port = app.state.settings.port
@@ -67,9 +72,11 @@ async def export_snapshot(app: FastAPI) -> dict[str, Any]:
 
         for path in PAGES:
             routes[path] = await get(path)
+        routes["/api/repos"]["repos"] = [_settled(repo) for repo in routes["/api/repos"]["repos"]]
         for repo in routes["/api/repos"]["repos"]:
             path = f"/api/repos/{repo['owner']}/{repo['name']}"
             routes[path] = await get(path)
+            routes[path]["repo"] = _settled(routes[path]["repo"])
         for proposal in routes["/api/proposals?status=all"]["proposals"]:
             path = f"/api/proposals/{proposal['id']}"
             routes[path] = await get(path)
@@ -107,11 +114,15 @@ def _latest_work(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def digest(snapshot: dict[str, Any]) -> str:
     """A fingerprint of what the site shows that is worth a new deployment: scores, findings,
     proposals, lessons and notes for Pitch. Clock times, request counts and star counts don't count,
-    so a check that changes none of these leaves the published file alone."""
+    so a check that changes none of these leaves the published file alone.
+
+    Nor does a CI run starting or finishing. CI that begins to fail, or passes again, arrives as a
+    finding. What is left is "running" turning into "passing", and the job's own commit, which no
+    CI runs on: counting those would publish again after every publish."""
     routes = snapshot["routes"]
     repos = [
         (repo["full_name"], repo["kind"], repo["score"], repo["counts"], repo["description"], repo["topics"],
-         repo["homepage"], repo["license"], repo["ci_state"])
+         repo["homepage"], repo["license"])
         for repo in routes["/api/repos"]["repos"]
     ]  # fmt: skip
     findings = {

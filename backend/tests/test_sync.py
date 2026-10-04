@@ -137,6 +137,23 @@ async def test_graphql_and_rest_agree(db):
     assert set(via_graphql.dirs) == set(via_rest.dirs)
 
 
+async def test_graphql_reads_ci_from_the_newest_commit_that_has_a_result(db):
+    """A push made by a workflow starts no workflow, so the newest commits can have no result at all."""
+    fake = FakeGitHub(
+        [
+            FakeRepo("botted", files=healthy_files(), ci="failure", unchecked_commits=2),
+            FakeRepo("never", files=healthy_files(), unchecked_commits=2),
+        ]
+    )
+    client = GitHubClient(db, VALID_TOKEN, transport=fake.transport())
+    details = await GraphQLSnapshotter(client).fetch([meta("botted"), meta("never")])
+    await client.aclose()
+
+    assert details["octo/botted"].ci_state == "failure"  # not hidden by the two commits on top of it
+    assert details["octo/never"].ci_state is None
+    assert len(fake.calls) == 1  # still the one query
+
+
 async def test_graphql_covers_twelve_repositories_in_two_queries(db):
     fake = FakeGitHub([FakeRepo(f"r{i:02}", files=healthy_files()) for i in range(12)])
     client = GitHubClient(db, VALID_TOKEN, transport=fake.transport())

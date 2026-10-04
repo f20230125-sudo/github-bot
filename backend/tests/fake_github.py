@@ -50,6 +50,7 @@ class FakeRepo:
     default_branch: str = "main"
     files: dict[str, str] = field(default_factory=dict)
     ci: str | None = None  # "success", "failure" or "in_progress"
+    unchecked_commits: int = 0  # newest commits that no workflow ran on: pushed by a workflow itself
     private: bool = False
     fork: bool = False
     archived: bool = False
@@ -349,6 +350,7 @@ class FakeGitHub:
             return out
 
         rollup = {"success": "SUCCESS", "failure": "FAILURE", "in_progress": "PENDING"}.get(repo.ci or "")
+        checked = {"statusCheckRollup": {"state": rollup} if rollup else None}
         result: dict[str, Any] = {
             "isEmpty": False,
             "latestRelease": {"tagName": repo.release[0], "publishedAt": repo.release[1]} if repo.release else None,
@@ -356,7 +358,8 @@ class FakeGitHub:
                 "target": {
                     "oid": "c" * 40,
                     "tree": {"oid": self._tree_sha(repo)},
-                    "statusCheckRollup": {"state": rollup} if rollup else None,
+                    # Newest first, starting with the head commit itself.
+                    "history": {"nodes": [{"statusCheckRollup": None}] * repo.unchecked_commits + [checked]},
                 }
             },
             "root": {"entries": entries(nested, 1)},
