@@ -30,7 +30,7 @@ from . import PICK, YOU
 from .brief import ANGLE_LABELS, Brief, build_brief
 from .learning import drafted_text, feedback_of
 from .posts import Post, PostStore
-from .writing import TONES, run_write
+from .writing import TONES, run_write, template_post
 
 PERSONA_PATH = Path(__file__).parent / "persona.toml"
 SEEN_KEY = "pitch.notes"
@@ -190,6 +190,11 @@ class PitchAgent:
                         "facts": [asdict(fact) for fact in brief.facts],
                         "missing": self._reasons(brief, facts),
                         "wanted": [say(f"wanted.{key}") for key in brief.wanted],
+                        # The post rules alone can write, from these facts and nothing else. It is
+                        # what the view-only copy offers, since it has no Claude to ask.
+                        "plain_post": template_post(brief.angle, facts, payload.get("data") or {})
+                        if brief.ready
+                        else None,
                     },
                 }
             )  # fmt: skip

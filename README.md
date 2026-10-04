@@ -212,6 +212,13 @@ The job has no Claude, so it suggests only what rules and templates can write: l
 `.gitignore` files and CI workflows. Descriptions, topics and README rewrites come from the desk
 on the owner's machine. Pitch's reading of Patch's notes needs no model, so it runs in the job too.
 
+**Pitch and Setup are there too, without Claude.** On Pitch's page, **Write the post** gives the
+plain version of the post, built from the facts by a template. It can be edited, copied and taken
+to LinkedIn's new-post window. Nothing typed there is saved. The Claude-written drafts, the tone
+chosen and the rules learned stay on the working desk. The Setup page shows how the working desk
+is connected: the safety switches as they stand, how Claude is used and limited, and what a GitHub
+token would allow. Nothing on it can be changed.
+
 To set it up for your own account: import the repository in Vercel, choose the `frontend` folder,
 and deploy. On Vercel the view-only build is the default (`NEXT_PUBLIC_SHOWCASE=1` selects it
 anywhere else). To publish what your own desk holds instead, run `python -m app.showcase` in
