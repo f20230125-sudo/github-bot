@@ -102,8 +102,9 @@ function SweepRows({ rows, onChange }: { rows: SweepRow[]; onChange: (rows: Swee
 const OUT_LINK = "inline-flex items-center gap-1.5 text-sm underline underline-offset-4";
 
 /**
- * The view-only site can't change anything. Instead, this opens GitHub's own editor with the file
- * already filled in. Committing there is the owner's click, made while signed in to GitHub.
+ * The view-only site holds nothing that can write to a repository. Instead, this opens GitHub's
+ * own editor with the file already filled in. Committing there is the owner's click, made while
+ * signed in to GitHub.
  */
 function ApplyOnGitHub({ repo, branch, row }: { repo: string; branch: string; row: FileRow }) {
   const { path, is_new: isNew } = row.file;

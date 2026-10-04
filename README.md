@@ -159,8 +159,16 @@ check ran. The repository's owner can start a check by hand from the Actions tab
 
 **Suggestions can be acted on.** Each suggested file has a button that opens GitHub's own editor
 with the name and the content filled in. Committing there is the owner's click, made on GitHub.
-The site never holds a token, so for anyone else the button leads to GitHub's offer to fork. At
-its next check Patch sees the fix and drops the suggestion.
+The site holds nothing that can write to a repository, so for anyone else the button leads to
+GitHub's offer to fork. At its next check Patch sees the fix and drops the suggestion.
+
+**Check now.** The button on the Floor starts a check at once and waits for the result, without
+leaving the site. For that the site's server needs one setting on the host,
+`PATCH_DISPATCH_TOKEN`: a fine-grained GitHub token limited to this repository, with "Actions:
+Read and write" and nothing else. It can start the job and read how it went. It cannot touch any
+code, and it is never sent to a browser. Anyone who opens the site can press the button, so a
+check is never started while one is running or within two minutes of the last. Without the
+token, the button points to the job's page on GitHub instead.
 
 The job has no Claude, so it suggests only what rules and templates can write: licenses,
 `.gitignore` files and CI workflows. Descriptions, topics and README rewrites come from the desk

@@ -1,12 +1,13 @@
 "use client";
 
-import { Play, RefreshCw, RotateCcw, SkipForward } from "lucide-react";
+import { Play, RotateCcw, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { Approvals } from "@/components/Approvals";
 import { AuditButton, DraftButton } from "@/components/AuditButton";
 import { Chat } from "@/components/Chat";
+import { CheckNow } from "@/components/CheckNow";
 import { Feed } from "@/components/Feed";
 import { useStream } from "@/components/StreamProvider";
 import { Button, InlineError, Notice, StatRow, Tag } from "@/components/ui";
@@ -14,7 +15,6 @@ import { agentMeta } from "@/lib/agents";
 import { API_URL, ApiError, fetchHandoffs, fetchHealth, fetchMetrics, playDemo } from "@/lib/api";
 import { agentView, buildFeed, lastFinishedRun, lastMessage } from "@/lib/feed";
 import { shortDate, shortRepo } from "@/lib/format";
-import { WORKFLOW_URL } from "@/lib/showcase";
 import type { Handoff } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
@@ -124,16 +124,7 @@ export default function FloorPage() {
                 {replay.playing ? <SkipForward size={14} aria-hidden /> : <RotateCcw size={14} aria-hidden />}
                 {replay.playing ? "Skip to the end" : "Replay the last check"}
               </Button>
-              {/* GitHub's own page for the scheduled check. Its owner can start one there by hand. */}
-              <a
-                href={WORKFLOW_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-line-strong px-4 py-2 text-sm font-medium text-fg transition hover:bg-surface-2"
-              >
-                <RefreshCw size={14} aria-hidden />
-                Check now
-              </a>
+              <CheckNow />
             </>
           )}
         </div>

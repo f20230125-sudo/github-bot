@@ -31,16 +31,32 @@ async function read(url: string, init?: RequestInit): Promise<Snapshot | null> {
   }
 }
 
+/**
+ * The newest snapshot there is. The scheduled check commits a new one whenever something changed,
+ * so it is read from the repository: through the site's own server when that is connected to
+ * GitHub (exact), else from GitHub's file cache (can lag a commit by a few minutes). The copy
+ * built into the site is the last resort. `version` makes the address new, to get past caches.
+ */
+async function newest(version?: string): Promise<Snapshot | null> {
+  const viaServer = await read(`/live/snapshot${version ? `?v=${encodeURIComponent(version)}` : ""}`);
+  if (viaServer?.routes) return viaServer;
+  const fromGitHub = FRESH_SNAPSHOT_URL ? await read(FRESH_SNAPSHOT_URL, { cache: "no-store" }) : null;
+  return fromGitHub?.routes ? fromGitHub : null;
+}
+
 export function loadSnapshot(): Promise<Snapshot> {
   loading ??= (async () => {
-    // The scheduled check commits a new snapshot whenever something changed. Reading it straight
-    // from the repository shows it at once. The copy built into the site is the fallback.
-    const fresh = FRESH_SNAPSHOT_URL ? await read(FRESH_SNAPSHOT_URL, { cache: "no-store" }) : null;
-    const snapshot = fresh ?? (await read("/showcase/snapshot.json"));
+    const snapshot = (await newest()) ?? (await read("/showcase/snapshot.json"));
     if (!snapshot) throw new Error("The snapshot is missing.");
     return snapshot;
   })();
   return loading;
+}
+
+/** After a check: whether the repository now holds a different snapshot from the one on screen. */
+export async function snapshotChanged(version: string): Promise<boolean> {
+  const [shown, latest] = await Promise.all([loadSnapshot(), newest(version)]);
+  return latest !== null && (latest.digest ?? latest.exported_at) !== (shown.digest ?? shown.exported_at);
 }
 
 /**
@@ -85,15 +101,59 @@ export async function showcaseGet(path: string): Promise<unknown> {
 
 export type ScheduledCheck = { at: string; ok: boolean; url: string };
 
+/** What the site's own server says about the check: see app/live/check/route.ts. */
+export type CheckStatus = {
+  configured: boolean;
+  state?: "idle" | "running" | "unknown";
+  at?: string | null;
+  ok?: boolean | null;
+  url?: string | null;
+  run_id?: number | null;
+  started?: boolean;
+  reason?: "running" | "recent" | "refused" | "unreachable";
+  since?: string;
+  retry_in?: number;
+};
+
+/** Ask the site's server how the check is going. null when the site has no server side at all. */
+export async function checkStatus(): Promise<CheckStatus | null> {
+  try {
+    const response = await fetch("/live/check", { cache: "no-store" });
+    return (await response.json()) as CheckStatus;
+  } catch {
+    return null;
+  }
+}
+
+/** Ask the site's server to start a check now. */
+export async function startCheck(): Promise<CheckStatus | null> {
+  try {
+    const response = await fetch("/live/check", { method: "POST", cache: "no-store" });
+    return (await response.json()) as CheckStatus;
+  } catch {
+    return null;
+  }
+}
+
+/** Told to anything showing "last check" when a check started from this page has finished. */
+export const CHECKED_EVENT = "desk-checked";
+
 const CHECK_CACHE = "desk-last-check";
 const CHECK_CACHE_MS = 10 * 60 * 1000;
 
 /**
- * When the scheduled check last ran, asked from GitHub's public API. A check that finds nothing
- * commits nothing, so this is the only place that knows it ran. Visitors get 60 such requests
- * an hour from GitHub, so the answer is kept for ten minutes.
+ * When the scheduled check last ran. A check that finds nothing commits nothing, so the snapshot
+ * can't say. The site's own server knows, when it is connected to GitHub. Otherwise GitHub's
+ * public API is asked from the browser: visitors get 60 such requests an hour, so that answer is
+ * kept for ten minutes.
  */
 export async function fetchScheduledCheck(): Promise<ScheduledCheck | null> {
+  const server = await checkStatus();
+  if (server?.configured) {
+    return server.state === "idle" && server.at && server.url
+      ? { at: server.at, ok: server.ok === true, url: server.url }
+      : null;
+  }
   try {
     const kept = JSON.parse(sessionStorage.getItem(CHECK_CACHE) ?? "null") as { saved: number; check: ScheduledCheck } | null;
     if (kept && Date.now() - kept.saved < CHECK_CACHE_MS) return kept.check;
@@ -127,8 +187,8 @@ const LONGEST_URL = 7000;
 
 /**
  * GitHub's own "new file" page with the name and the content already filled in. Committing there
- * is the owner's click, made on GitHub while signed in to GitHub: this site never holds a token.
- * Returns null when the content is too long to travel in an address.
+ * is the owner's click, made on GitHub while signed in to GitHub: this site holds nothing that
+ * can write to a repository. Returns null when the content is too long to travel in an address.
  */
 export function newFileUrl(repo: string, branch: string, path: string, content: string): string | null {
   const url = `https://github.com/${repo}/new/${branch}?filename=${encodeURIComponent(path)}&value=${encodeURIComponent(content)}`;
