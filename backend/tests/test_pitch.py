@@ -89,7 +89,10 @@ def test_the_note_says_which_release_and_which_milestone():
 
     assert release.angle == "release" and said(release)["Release"] == "v1.2.0"
     assert stars.angle == "milestone" and said(stars)["Stars"] == "25"  # the milestone, not today's count
-    assert "Stars" not in said(build_brief("ready", {}, facts()))  # zero stars is nothing to state
+    # A handful of stars is nothing to state. A real count is.
+    assert "Stars" not in said(build_brief("ready", {}, facts(stars=0)))
+    assert "Stars" not in said(build_brief("ready", {}, facts(stars=4)))
+    assert said(build_brief("ready", {}, facts(stars=12)))["Stars"] == "12"
     # A score that went down, or has no history, is stated without the comparison.
     assert said(build_brief("ready", {}, facts(score_before=None)))["Score"] == "88 out of 100"
     assert said(build_brief("ready", {}, facts(score_before=95)))["Score"] == "88 out of 100"

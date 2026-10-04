@@ -25,6 +25,8 @@ ANGLE_LABELS = {
     "update": "Update post",
 }
 MAX_TOPICS = 4
+# A handful of stars is nothing to state. Patch's first star milestone is at this many.
+MIN_STARS = 5
 
 
 @dataclass(frozen=True)
@@ -78,7 +80,7 @@ def build_brief(topic: str, data: Mapping[str, Any], facts: Mapping[str, Any] | 
     if release:
         said.append(Fact("Release", str(release)))
     stars = data.get("stars") if topic == "stars" else facts.get("stars")
-    if stars:
+    if stars and stars >= MIN_STARS:
         said.append(Fact("Stars", str(stars)))
     built = [facts.get("language"), ", ".join((facts.get("topics") or [])[:MAX_TOPICS])]
     if any(built):
