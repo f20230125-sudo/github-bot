@@ -12,6 +12,7 @@ from urllib.parse import quote, unquote
 
 from .handoffs import READY_SCORE
 from .models import RepoSnapshot
+from .paths import WORKFLOW_RE
 from .store import StoredRepo
 
 _FENCE_RE = re.compile(r"```.*?```", re.S)
@@ -68,6 +69,7 @@ def readme_intro(text: str | None) -> str | None:
 def repo_facts(repo: StoredRepo, history: list[dict[str, Any]]) -> dict[str, Any]:
     """`history` is the repository's score over time, oldest first."""
     meta, details = repo.snapshot.meta, repo.snapshot.details
+    found = {finding.check for finding in repo.findings}
     return {
         "full_name": repo.full_name,
         "name": meta.name,
@@ -82,6 +84,14 @@ def repo_facts(repo: StoredRepo, history: list[dict[str, Any]]) -> dict[str, Any
         "stars": meta.stars,
         "release": details.latest_release,
         "image": readme_image(repo.snapshot),
+        # What the health checks found present. Each is something a post may say the project has.
+        "has": {
+            "tests": "tests_missing" not in found,
+            # A workflow is there and is not failing. Whether a run happens to be in progress
+            # right now does not come into it: a post is read long after that run has ended.
+            "ci": any(WORKFLOW_RE.match(path) for path in details.files) and details.ci_state != "failure",
+            "setup_steps": not found & {"readme_missing", "readme_short", "readme_setup"},
+        },
         "score": repo.score,
         "score_before": history[-2]["score"] if len(history) > 1 else None,
         # Presentable: it explains itself and can be reused. The line is Patch's to draw.

@@ -64,7 +64,8 @@ lines to choose from. The post is written in the first person, as you, not in Pi
 Before you see a draft, rules check every version. One is thrown away if it has a number that is
 not in the facts or the README, a link that is not in the facts, a hype word, an exclamation mark,
 an emoji, Markdown, more than three hashtags, or more than 1,300 characters. If nothing survives,
-or Claude is off or over the 40% stop, a plain post built from the facts by a template stands in.
+or Claude is off or over the 40% stop, rules write the post instead, in the same tones, from the
+facts alone.
 
 **Posting.** You edit the draft on Pitch's page. **Copy** puts it on the clipboard. **Open
 LinkedIn** opens LinkedIn's own new-post window with the text filled in, and you press Post there.
@@ -212,10 +213,13 @@ The job has no Claude, so it suggests only what rules and templates can write: l
 `.gitignore` files and CI workflows. Descriptions, topics and README rewrites come from the desk
 on the owner's machine. Pitch's reading of Patch's notes needs no model, so it runs in the job too.
 
-**Pitch and Setup are there too, without Claude.** On Pitch's page, **Write the post** gives the
-plain version of the post, built from the facts by a template. It can be edited, copied and taken
-to LinkedIn's new-post window. Nothing typed there is saved. The Claude-written drafts, the tone
-chosen and the rules learned stay on the working desk. The Setup page shows how the working desk
+**Pitch and Setup are there too, without Claude.** On Pitch's page you can pick any public
+project, not only the ones Patch left a note about, and **Write the post** gives the post in three
+tones (plain, story, technical). Rules write them from the facts: the repository's own
+description, what the health checks found in place, its score and its links. Each can be edited,
+copied and taken to LinkedIn's new-post window. The tone you choose is remembered in your browser,
+and nothing typed there is saved. The Claude-written drafts, the tone chosen on the desk and the
+rules learned stay on the working desk. The Setup page shows how the working desk
 is connected: the safety switches as they stand, how Claude is used and limited, and what a GitHub
 token would allow. Nothing on it can be changed.
 

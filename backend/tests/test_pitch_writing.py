@@ -16,6 +16,7 @@ from app.agents.linkedin.writing import (
     post_problems,
     system_prompt,
     template_post,
+    template_posts,
     tidy,
     write_prompt,
 )
@@ -146,6 +147,42 @@ def test_the_template_is_made_of_the_facts_and_nothing_else():
 
     bare = {"name": "app", "url": "https://github.com/octo/app", "license": "NOASSERTION"}
     assert template_post("launch", bare, {}) == "I built app.\n\nCode: https://github.com/octo/app"
+
+
+def test_rules_write_the_post_in_every_tone_and_state_only_what_the_checks_found(persona):
+    facts = {
+        "name": "app", "url": "https://github.com/octo/app", "description": "A small service.", "intro": None,
+        "homepage": None, "language": "Python", "topics": ["python", "fastapi", "rag"], "license": "MIT",
+        "score": 88, "score_before": 62, "has": {"tests": True, "ci": True, "setup_steps": True},
+    }  # fmt: skip
+    plain, story, technical = template_posts("launch", facts, {})
+
+    assert [(v["tone"], v["label"]) for v in (plain, story, technical)] == [
+        ("plain", "Plain"), ("story", "Story"), ("technical", "Technical"),
+    ]  # fmt: skip
+    assert plain["text"] == template_post("launch", facts, {})
+    assert story["text"] == (
+        "A project is not finished when the code works.\n\napp: A small service.\n\n"
+        "It has a license, a README that says how to run it, tests and CI that runs on every push. "
+        "An audit I run on all my repositories scores it 88 out of 100, up from 62.\n\n"
+        "Code: https://github.com/octo/app"
+    )
+    assert technical["text"] == (
+        "How app is put together.\n\nA small service.\n\n"
+        "Stack: Python, fastapi, rag.\nTests run in CI on every push.\nLicense: MIT.\n\n"
+        "Code: https://github.com/octo/app"
+    )
+    # Each passes the same rules a draft from Claude has to pass.
+    source = "Score: 88 out of 100, up from 62\n" + "\n".join(f"{key}: {value}" for key, value in facts.items())
+    for variant in (plain, story, technical):
+        assert post_problems(variant["text"], source, {"https://github.com/octo/app"}, persona) in ([], ["too short to be a post"])
+
+    # Nothing is claimed that the checks did not find, and the news leads when there is some.
+    thin = facts | {"license": None, "score_before": None, "has": {"tests": True, "ci": False, "setup_steps": False}}
+    _, thin_story, thin_technical = template_posts("release", thin, {"tag": "v2.0.0"})
+    assert "It has tests. An audit I run on all my repositories scores it 88 out of 100.\n" in thin_story["text"]
+    assert "app v2.0.0 is out. A small service." in thin_story["text"] and "license" not in thin_story["text"]
+    assert "It has tests.\n" in thin_technical["text"] and "CI" not in thin_technical["text"]
 
 
 # -- what Claude is told ----------------------------------------------------------------------
@@ -282,11 +319,12 @@ async def test_with_claude_off_a_template_stands_in_and_no_call_is_made(client, 
 
     assert post_calls(claude_fake) == []
     [post] = (await client.get("/api/pitch/posts")).json()["posts"]
-    assert post["source"] == "template" and [v["tone"] for v in post["variants"]] == ["plain"]
+    # No tone has been chosen, so rules write every tone, as Claude would have been asked to.
+    assert post["source"] == "template" and [v["tone"] for v in post["variants"]] == ["plain", "story", "technical"]
     assert post["variants"][0]["text"].startswith("I built messy.\n\nA project.") and LINK in post["variants"][0]["text"]
     steps = [e.payload["text"] for e in by_pitch(db, "run.step")]
     assert steps[-2].startswith("Not calling Claude.")
-    assert steps[-1] == "Written from a template. Plain, and every word of it is from the facts."
+    assert steps[-1] == "Written by rules, no model. Every word of it is from the facts."
     assert by_pitch(db, "run.finished")[-1].payload["text"] == "Draft ready. 0 model calls."
 
 
@@ -406,6 +444,9 @@ async def test_you_can_ask_for_a_post_about_a_repository_patch_left_no_note_for(
     listed = (await client.get("/api/pitch/repos")).json()["repos"]
     assert [(repo["name"], repo["ready"]) for repo in listed] == [("healthy", True), ("messy", False)]  # no placeholder
     assert listed[0]["reason"] is None and listed[1]["reason"].startswith("It scores ")
+    # Each comes with Pitch's reading of it, and the post rules can write when there is enough.
+    assert [v["tone"] for v in listed[0]["brief"]["plain_posts"]] == ["plain", "story", "technical"]
+    assert listed[0]["brief"]["facts"][0]["label"] == "What it is" and listed[1]["brief"]["plain_posts"] == []
 
     picked = await client.post("/api/pitch/notes", json={"repo": "octo/healthy"}, headers=WRITE_HEADERS)
     await app.state.desk.join()  # Pitch reads it like any other note
@@ -431,6 +472,8 @@ async def test_you_can_ask_for_a_post_about_a_repository_patch_left_no_note_for(
     text = json.dumps(snapshot)
     assert snapshot["routes"]["/api/handoffs"]["handoffs"] == []
     assert "pick:octo/healthy" not in text and "You asked for a post" not in text
+    # On the site, healthy can still be picked by anyone: your own pick left no trace there.
+    assert [repo["name"] for repo in snapshot["routes"]["/api/pitch/repos"]["repos"]] == ["healthy", "messy"]
     assert snapshot["routes"]["/api/agents/pitch"]["status"]["text"] == "Nothing new worth a post."
 
 
@@ -461,7 +504,8 @@ async def test_the_public_snapshot_holds_no_draft_no_tone_and_no_rule_learned_fr
     text = json.dumps(snapshot)
     for private in (PLAIN, STORY, TECHNICAL, mine, "tiny service", "Leave the link on its own last line."):
         assert private not in text
-    assert not any(path.startswith("/api/pitch") for path in snapshot["routes"])
+    # Of Pitch's own endpoints only the list of projects to pick from is there, never the posts.
+    assert [path for path in snapshot["routes"] if path.startswith("/api/pitch")] == ["/api/pitch/repos"]
     pitch = snapshot["routes"]["/api/agents/pitch"]
     assert pitch["lessons"] == [] and pitch["tone"] is None
     # What stays public is what was public before: the note, and whether there is enough for a post.

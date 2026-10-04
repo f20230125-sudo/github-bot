@@ -14,8 +14,9 @@ import { fetchNotes, fetchPickable, fetchPitch, fetchPosts, pickRepo, setTone, w
 import { agentView, lastFinishedRun, lastOfType } from "@/lib/feed";
 import { plural } from "@/lib/format";
 import { SHOWCASE } from "@/lib/showcase";
-import type { PickableRepo, PitchSheet, Post } from "@/lib/types";
+import type { Handoff, PickableRepo, PitchSheet, Post } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
+import { setViewerTone, useViewerTone } from "@/lib/viewerTone";
 
 const LESSON_COPY = {
   title: "What Pitch has learned",
@@ -41,8 +42,12 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-/** Ask for a post about a repository Patch left no note for. Pitch reads your note like any other. */
-function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => void }) {
+/**
+ * Ask for a post about a repository Patch left no note for. `onPick` does it: on the working
+ * desk it leaves Pitch a note and asks for the draft, and on the view-only copy it opens the
+ * repository's card on this page.
+ */
+function Pick({ repos, onPick }: { repos: PickableRepo[]; onPick: (item: PickableRepo) => Promise<void> }) {
   const [repo, setRepo] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +56,12 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!chosen) return;
     setBusy(true);
     setError(null);
     try {
-      // One press does both: leave the note, and if there is enough for a post, ask for the draft.
-      const note = await pickRepo(repo);
-      if (chosen?.ready) await writePost(note.id);
+      await onPick(chosen);
       setRepo("");
-      onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't go through.");
     } finally {
@@ -91,9 +94,7 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
         </Button>
       </div>
       {chosen && !chosen.ready && chosen.reason && (
-        <p className="text-xs leading-relaxed text-faint">
-          Pitch will say not yet. {chosen.reason}
-        </p>
+        <p className="text-xs leading-relaxed text-faint">Pitch says not yet. {chosen.reason}</p>
       )}
       {error && <InlineError>{error}</InlineError>}
     </form>
@@ -101,17 +102,20 @@ function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => vo
 }
 
 /**
- * The tone your posts are written in. Until you choose, a draft comes in every tone.
- * The view-only copy shows the tones there are, and can't choose one.
+ * The tone your posts are written in. On the working desk the choice is kept by Pitch, and until
+ * you make one a draft comes in every tone. On the view-only copy the choice is kept in the
+ * visitor's own browser, and decides which version a post opens in.
  */
 function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const viewerTone = useViewerTone();
   const tones = sheet.tones ?? {};
-  const tone = sheet.tone ?? null;
+  const tone = SHOWCASE ? viewerTone : (sheet.tone ?? null);
   if (!Object.keys(tones).length) return null; // a snapshot from before Pitch could write
 
   async function choose(next: string | null) {
+    if (SHOWCASE) return setViewerTone(next);
     setBusy(true);
     setError(null);
     try {
@@ -132,27 +136,27 @@ function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }
   return (
     <section className="panel flex flex-col gap-3 p-6" aria-label="Your tone">
       <div>
-        <h2 className="font-display text-xl font-semibold tracking-tight">{SHOWCASE ? "Tone" : "Your tone"}</h2>
+        <h2 className="font-display text-xl font-semibold tracking-tight">Your tone</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           {SHOWCASE
-            ? "On the working desk, the first draft comes in each of these tones. The one its owner posts becomes the tone for later drafts. Which one was chosen stays on the desk."
+            ? tone
+              ? `Posts open in the ${tones[tone]?.label.toLowerCase() ?? tone} version. The choice is kept in this browser.`
+              : "Pick the tone you want posts in. Every post here comes in all three, and your choice decides which one it opens in."
             : tone
               ? `Drafts are written in the ${tones[tone]?.label.toLowerCase() ?? tone} tone, with two other opening lines to choose from.`
               : "Not chosen yet. A draft comes in every tone, and the one you post becomes yours."}
         </p>
       </div>
-      {!SHOWCASE && (
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(tones).map(([key, value]) => (
-            <button key={key} type="button" aria-pressed={tone === key} disabled={busy} onClick={() => choose(key)} className={pill(tone === key)}>
-              {value.label}
-            </button>
-          ))}
-          <button type="button" aria-pressed={tone === null} disabled={busy} onClick={() => choose(null)} className={pill(tone === null)}>
-            Every tone
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(tones).map(([key, value]) => (
+          <button key={key} type="button" aria-pressed={tone === key} disabled={busy} onClick={() => choose(key)} className={pill(tone === key)}>
+            {value.label}
           </button>
-        </div>
-      )}
+        ))}
+        <button type="button" aria-pressed={tone === null} disabled={busy} onClick={() => choose(null)} className={pill(tone === null)}>
+          {SHOWCASE ? "No preference" : "Every tone"}
+        </button>
+      </div>
       <dl className="flex flex-col gap-1.5 text-xs leading-relaxed text-faint">
         {Object.entries(tones).map(([key, value]) => (
           <div key={key}>
@@ -161,10 +165,19 @@ function Tone({ sheet, onChanged }: { sheet: PitchSheet; onChanged: () => void }
           </div>
         ))}
       </dl>
+      {SHOWCASE && (
+        <p className="text-xs leading-relaxed text-faint">
+          On this copy, rules write each version from the facts. On the working desk Claude writes them, and
+          the tone its owner posts in becomes the one later drafts are written in.
+        </p>
+      )}
       {error && <InlineError>{error}</InlineError>}
     </section>
   );
 }
+
+/** A repository a visitor picked on the view-only copy, and when. It lives in this page only. */
+type Picked = { repo: string; at: string };
 
 export default function PitchPage() {
   const { events, status } = useStream();
@@ -176,13 +189,46 @@ export default function PitchPage() {
   const { data: tray } = useApi(`notes:${key}`, fetchNotes);
   // Drafts exist on the working desk only. The view-only copy never holds one.
   const { data: mine } = useApi(`posts:${key}`, (signal) => (SHOWCASE ? Promise.resolve(null) : fetchPosts(signal)));
-  const { data: pickable } = useApi(`pickable:${key}`, (signal) =>
-    SHOWCASE ? Promise.resolve(null) : fetchPickable(signal),
-  );
+  // The projects with no note yet. A snapshot from before they could be picked has no such list.
+  const { data: pickable } = useApi(`pickable:${key}`, (signal) => fetchPickable(signal).catch(() => null));
+  const [picked, setPicked] = useState<Picked[]>([]);
   const meta = agentMeta("pitch");
 
+  // On the view-only copy a pick is not sent anywhere. It becomes a card on this page, read
+  // exactly as Pitch would read a note about it, and the newest pick goes on top.
+  const pickedNotes: Handoff[] = [];
+  for (const [index, pick] of picked.entries()) {
+    const item = pickable?.repos.find((candidate) => candidate.repo === pick.repo);
+    if (!item?.brief) continue;
+    pickedNotes.push({
+      id: -(index + 1),
+      ts: pick.at,
+      repo: item.repo,
+      from: "you",
+      to: "pitch",
+      topic: "pick",
+      text: `You asked for a post about ${item.name}.`,
+      data: {},
+      thread: `pick:${item.repo}`,
+      brief: item.brief,
+    });
+  }
+  pickedNotes.reverse();
+  const unpicked = (pickable?.repos ?? []).filter((item) => !picked.some((pick) => pick.repo === item.repo));
+
+  async function onPick(item: PickableRepo) {
+    if (SHOWCASE) {
+      setPicked((all) => [...all, { repo: item.repo, at: new Date().toISOString() }]);
+      return;
+    }
+    // One press does both: leave the note, and if there is enough for a post, ask for the draft.
+    const note = await pickRepo(item.repo);
+    if (item.ready) await writePost(note.id);
+    changed();
+  }
+
   // What can be posted comes first. Within each group the newest note stays on top.
-  const all = tray?.handoffs ?? [];
+  const all = [...pickedNotes, ...(tray?.handoffs ?? [])];
   const notes = [...all.filter((note) => note.brief?.ready), ...all.filter((note) => !note.brief?.ready)];
   const ready = all.filter((note) => note.brief?.ready).length;
   const view = agentView(events, "pitch", sheet?.status ?? { status: "idle", text: "Nothing new worth a post.", mood: "normal" });
@@ -277,11 +323,11 @@ export default function PitchPage() {
               )}
               {SHOWCASE && (
                 <p className="mt-3 text-xs leading-relaxed text-faint">
-                  This copy has no Claude, so Write the post gives the plain version built from the facts. On
-                  the working desk Claude writes it, and those drafts stay there.
+                  This copy has no Claude, so Write the post gives the post in three tones as rules write it
+                  from the facts. On the working desk Claude writes them, and those drafts stay there.
                 </p>
               )}
-              {pickable && <Pick repos={pickable.repos} onChanged={changed} />}
+              {pickable && <Pick repos={unpicked} onPick={onPick} />}
             </div>
 
             {notes.length ? (
@@ -298,7 +344,8 @@ export default function PitchPage() {
                         onChanged={changed}
                       />
                     ) : (
-                      SHOWCASE && <PlainPost note={note} />
+                      // A repository picked on this page was picked to be written about: open it.
+                      SHOWCASE && <PlainPost note={note} startOpen={note.id < 0} />
                     )}
                   </NoteCard>
                 ))}
@@ -306,7 +353,7 @@ export default function PitchPage() {
             ) : (
               <p className="panel p-8 text-sm leading-relaxed text-muted">
                 No notes yet. The first audit is a baseline, so nothing in it is news. A note appears when
-                something changes after that{SHOWCASE ? "." : ", or when you pick a repository above."}
+                something changes after that, or when you pick a repository above.
               </p>
             )}
 

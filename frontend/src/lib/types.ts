@@ -248,8 +248,8 @@ export type Brief = {
   missing: string[];
   /** What would make the post better, without holding it back. */
   wanted: string[];
-  /** The post rules alone can write from the facts, with no model. Null when there isn't enough for a post. */
-  plain_post?: string | null;
+  /** The post in every tone as rules alone write it from the facts, with no model. Empty when there isn't enough for a post. */
+  plain_posts?: PostVariant[];
 };
 
 /** A note Patch left for Pitch about something worth a post. */
@@ -297,7 +297,14 @@ export type Post = {
 };
 
 /** A public project of yours with no note yet: something you can ask Pitch to write about. */
-export type PickableRepo = { repo: string; name: string; ready: boolean; reason: string | null };
+export type PickableRepo = {
+  repo: string;
+  name: string;
+  ready: boolean;
+  reason: string | null;
+  /** Pitch's reading of it. Missing in a snapshot taken before projects could be picked on the site. */
+  brief?: Brief;
+};
 
 export type PitchPosts = {
   posts: Post[];

@@ -53,7 +53,7 @@ asked = "You asked for a post about {name}."
 [lines.write]
 claude_off = "Not calling Claude. {reason}"
 dropped = "Claude's draft broke the rules. Threw it away and used the template."
-template = "Written from a template. Plain, and every word of it is from the facts."
+template = "Written by rules, no model. Every word of it is from the facts."
 versions = "{versions_text}, one per tone. Pick the one that sounds like you."
 one = "One draft in your tone, with {hooks_text}."
 done = "Draft ready. {claude_text}."

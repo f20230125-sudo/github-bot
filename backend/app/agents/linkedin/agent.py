@@ -30,7 +30,7 @@ from . import PICK, YOU
 from .brief import ANGLE_LABELS, Brief, build_brief
 from .learning import drafted_text, feedback_of
 from .posts import Post, PostStore
-from .writing import TONES, run_write, template_post
+from .writing import TONES, run_write, template_posts
 
 PERSONA_PATH = Path(__file__).parent / "persona.toml"
 SEEN_KEY = "pitch.notes"
@@ -169,53 +169,60 @@ class PitchAgent:
             for key in brief.missing
         ]
 
+    def _brief_view(self, brief: Brief, facts: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+        """A brief as the site shows it: the verdict and reasons in Pitch's words, the facts, and
+        the post in every tone as rules alone can write it. That is what a copy with no Claude to
+        ask offers, and what the desk falls back to."""
+        say = self.persona.line
+        return {
+            "ready": brief.ready,
+            "angle": brief.angle,
+            "angle_label": ANGLE_LABELS[brief.angle],
+            "verdict": say("verdict.ready" if brief.ready else "verdict.not_yet"),
+            "facts": [asdict(fact) for fact in brief.facts],
+            "missing": self._reasons(brief, facts),
+            "wanted": [say(f"wanted.{key}") for key in brief.wanted],
+            "plain_posts": template_posts(brief.angle, facts, data) if brief.ready else [],
+        }
+
     def notes(self, limit: int = 20) -> list[dict[str, Any]]:
         """What Patch has left, newest first, each with Pitch's reading of it as things stand now.
         Nothing here says whether a post was drafted: that stays between you and Pitch."""
-        say = self.persona.line
         out: list[dict[str, Any]] = []
         for note in reversed(self._handoffs()[-limit:]):
             brief, facts = self.look(note)
             payload = note.payload
+            data = payload.get("data") or {}
             out.append(
                 {
                     "id": note.id, "ts": note.ts, "repo": note.repo, "from": payload.get("from"),
                     "to": payload.get("to"), "topic": payload.get("topic"), "text": payload.get("text"),
-                    "thread": payload.get("thread") or str(note.id), "data": payload.get("data") or {},
-                    "brief": {
-                        "ready": brief.ready,
-                        "angle": brief.angle,
-                        "angle_label": ANGLE_LABELS[brief.angle],
-                        "verdict": say("verdict.ready" if brief.ready else "verdict.not_yet"),
-                        "facts": [asdict(fact) for fact in brief.facts],
-                        "missing": self._reasons(brief, facts),
-                        "wanted": [say(f"wanted.{key}") for key in brief.wanted],
-                        # The post rules alone can write, from these facts and nothing else. It is
-                        # what the view-only copy offers, since it has no Claude to ask.
-                        "plain_post": template_post(brief.angle, facts, payload.get("data") or {})
-                        if brief.ready
-                        else None,
-                    },
+                    "thread": payload.get("thread") or str(note.id), "data": data,
+                    "brief": self._brief_view(brief, facts, data),
                 }
             )  # fmt: skip
         return out
 
     # -- a note of your own -------------------------------------------------------------------
 
-    def pickable(self) -> list[dict[str, Any]]:
-        """Your public projects that have no note yet, each with whether there is enough for a post.
-        Those with enough come first."""
-        noted = {note.repo for note in self._handoffs()}
+    def pickable(self, public: bool = False) -> list[dict[str, Any]]:
+        """Your public projects that have no note yet, each with Pitch's reading of it. Those with
+        enough for a post come first.
+
+        `public` is the list as the view-only copy may show it: a note you left yourself is not
+        counted, since nothing of it is published, so that repository stays on the list there.
+        """
+        noted = {note.repo for note in self._handoffs() if not (public and note.payload.get("from") == YOU)}
         out = []
         for full_name in self.source.projects():
             if full_name in noted:
                 continue
             facts = self.source.facts(full_name) or {}
             brief = build_brief(PICK, {}, facts or None)
-            reasons = self._reasons(brief, facts)
+            view = self._brief_view(brief, facts, {})
             out.append(
                 {"repo": full_name, "name": facts.get("name") or full_name, "ready": brief.ready,
-                 "reason": reasons[0] if reasons else None}
+                 "reason": view["missing"][0] if view["missing"] else None, "brief": view}
             )  # fmt: skip
         return sorted(out, key=lambda item: (not item["ready"], item["name"].lower()))
 
