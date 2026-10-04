@@ -103,7 +103,11 @@ function Draft({ note, post, onChanged }: { note: Handoff; post: Post; onChanged
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="eyebrow">The draft</h3>
         <span className="text-xs text-faint">
-          {post.source === "claude" ? "Written by Claude in one call" : "Built from the facts by a template. No model call"}
+          {post.source === "claude"
+            ? "Written by Claude in one call"
+            : post.notes.length
+              ? "Built from the facts by a template, because Claude's draft broke the rules"
+              : "Built from the facts by a template. No model call"}
         </span>
       </div>
 

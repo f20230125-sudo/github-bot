@@ -45,6 +45,10 @@ ideas = "{ideas_text} worth a post."
 holding = "{notes_text} on hold. Not enough for a post yet."
 paused = "Paused. I write nothing until you resume."
 
+# The note that is left when you pick a repository yourself.
+[lines.pick]
+asked = "You asked for a post about {name}."
+
 # What Pitch says while it writes a draft.
 [lines.write]
 claude_off = "Not calling Claude. {reason}"

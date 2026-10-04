@@ -13,6 +13,7 @@ from typing import Any
 ANGLES = {
     "new_repo": "launch",
     "ready": "launch",
+    "pick": "launch",  # you asked for a post about it yourself
     "demo_link": "demo",
     "release": "release",
     "stars": "milestone",

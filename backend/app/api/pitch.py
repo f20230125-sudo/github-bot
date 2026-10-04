@@ -48,6 +48,31 @@ async def posts(request: Request):
     }
 
 
+class PickBody(BaseModel):
+    repo: str = Field(min_length=3, max_length=200)
+
+
+@router.get("/repos")
+async def pickable(request: Request):
+    """Your public projects that have no note yet: what you can ask Pitch to write about yourself."""
+    return {"repos": request.app.state.pitch.pickable()}
+
+
+@router.post("/notes", status_code=201)
+async def pick(request: Request, body: PickBody):
+    """Leave Pitch a note of your own: you want a post about this repository."""
+    state = request.app.state
+    try:
+        note = await state.pitch.pick(body.repo)
+    except PostError as exc:
+        raise _refuse(exc) from None
+    try:
+        state.jobs.submit("pitch.read", state.pitch.read)  # Pitch answers it like any other note
+    except Paused:
+        pass  # it is read when the desk resumes and Patch next finishes a job
+    return {"id": note.id, "repo": note.repo}
+
+
 @router.post("/notes/{note_id}/draft", status_code=202)
 async def draft(request: Request, note_id: int, force: bool = False):
     """Ask Pitch to write a post for a note. One Claude call, or a template when Claude is off."""

@@ -9,7 +9,13 @@ const TOPIC_LABEL: Record<string, string> = {
   demo_link: "Live link",
   stars: "Stars",
   ready: "Presentable",
+  pick: "Your pick",
 };
+
+/** Who left the note: Patch, or you. */
+function author(note: Handoff): string {
+  return note.from === "you" ? "You" : "Patch";
+}
 
 /** What kind of news the note is, which repository, and when Patch left it. */
 function NoteHead({ note }: { note: Handoff }) {
@@ -61,7 +67,7 @@ export function NoteCard({ note, children }: { note: Handoff; children?: ReactNo
       <div>
         <NoteHead note={note} />
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          <span className="mr-2 text-xs text-faint">Patch</span>
+          <span className="mr-2 text-xs text-faint">{author(note)}</span>
           {note.text}
         </p>
       </div>

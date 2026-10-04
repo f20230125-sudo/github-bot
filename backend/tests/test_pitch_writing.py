@@ -396,6 +396,55 @@ async def test_writes_need_the_desk_header(client, app, fake):
     assert (await client.put("/api/pitch/tone", json={"tone": "plain"})).status_code == 403
 
 
+# -- a note of your own -----------------------------------------------------------------------
+
+
+async def test_you_can_ask_for_a_post_about_a_repository_patch_left_no_note_for(client, app, fake, db):
+    await app.state.patch.audit()  # a first audit is a baseline: it leaves no notes
+    assert (await client.get("/api/handoffs")).json()["handoffs"] == []
+
+    listed = (await client.get("/api/pitch/repos")).json()["repos"]
+    assert [(repo["name"], repo["ready"]) for repo in listed] == [("healthy", True), ("messy", False)]  # no placeholder
+    assert listed[0]["reason"] is None and listed[1]["reason"].startswith("It scores ")
+
+    picked = await client.post("/api/pitch/notes", json={"repo": "octo/healthy"}, headers=WRITE_HEADERS)
+    await app.state.desk.join()  # Pitch reads it like any other note
+    assert picked.status_code == 201 and picked.json()["repo"] == "octo/healthy"
+
+    [note] = (await client.get("/api/handoffs")).json()["handoffs"]
+    assert (note["from"], note["topic"], note["thread"]) == ("you", "pick", "pick:octo/healthy")
+    assert note["text"] == "You asked for a post about healthy." and note["brief"]["ready"] is True
+    assert note["brief"]["angle_label"] == "Launch post"
+    answer = by_pitch(db, "message")[-1]
+    assert (answer.payload["to"], answer.payload["text"]) == ("you", "Enough for a post.")
+
+    assert [repo["name"] for repo in (await client.get("/api/pitch/repos")).json()["repos"]] == ["messy"]
+    for repo, status in (("octo/healthy", 409), ("octo/nope", 404), ("octo/test", 404)):
+        refused = await client.post("/api/pitch/notes", json={"repo": repo}, headers=WRITE_HEADERS)
+        assert refused.status_code == status, repo
+
+    assert (await write(client, app, note["id"])).status_code == 202
+    assert [post["repo"] for post in (await client.get("/api/pitch/posts")).json()["posts"]] == ["octo/healthy"]
+
+    # What you mean to post about is yours to announce: none of it is in the public snapshot.
+    snapshot = await export_snapshot(app)
+    text = json.dumps(snapshot)
+    assert snapshot["routes"]["/api/handoffs"]["handoffs"] == []
+    assert "pick:octo/healthy" not in text and "You asked for a post" not in text
+    assert snapshot["routes"]["/api/agents/pitch"]["status"]["text"] == "Nothing new worth a post."
+
+
+async def test_a_pick_without_enough_for_a_post_is_told_why(client, app, fake, db):
+    await app.state.patch.audit()
+    await client.post("/api/pitch/notes", json={"repo": "octo/messy"}, headers=WRITE_HEADERS)
+    await app.state.desk.join()
+
+    [note] = (await client.get("/api/handoffs")).json()["handoffs"]
+    assert note["brief"]["ready"] is False and note["brief"]["missing"][0].startswith("It scores ")
+    assert by_pitch(db, "message")[-1].payload["text"].startswith("Not yet. It scores ")
+    assert (await write(client, app, note["id"])).status_code == 409
+
+
 # -- nothing of a draft leaves the desk -------------------------------------------------------
 
 

@@ -1,19 +1,19 @@
 "use client";
 
 import { Ban, Check } from "lucide-react";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { AgentCard } from "@/components/AgentCard";
 import { Lessons } from "@/components/Lessons";
 import { NoteCard } from "@/components/Notes";
 import { PostArea } from "@/components/PostEditor";
 import { useStream } from "@/components/StreamProvider";
-import { InlineError, Notice } from "@/components/ui";
+import { Button, InlineError, Notice } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
-import { fetchNotes, fetchPitch, fetchPosts, setTone } from "@/lib/api";
+import { fetchNotes, fetchPickable, fetchPitch, fetchPosts, pickRepo, setTone } from "@/lib/api";
 import { agentView, lastFinishedRun, lastOfType } from "@/lib/feed";
 import { plural } from "@/lib/format";
 import { SHOWCASE } from "@/lib/showcase";
-import type { PitchSheet, Post } from "@/lib/types";
+import type { PickableRepo, PitchSheet, Post } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
 const LESSON_COPY = {
@@ -37,6 +37,63 @@ function List({ title, items }: { title: string; items: string[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Ask for a post about a repository Patch left no note for. Pitch reads your note like any other. */
+function Pick({ repos, onChanged }: { repos: PickableRepo[]; onChanged: () => void }) {
+  const [repo, setRepo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!repos.length) return null;
+  const chosen = repos.find((item) => item.repo === repo);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await pickRepo(repo);
+      setRepo("");
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't go through.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+      <label htmlFor="pick-repo" className="text-sm leading-relaxed text-muted">
+        Want a post about something Patch has not flagged? Pick a repository.
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          id="pick-repo"
+          value={repo}
+          onChange={(e) => setRepo(e.target.value)}
+          className="min-w-0 flex-1 rounded-xl border border-line-strong bg-sunken px-3 py-2 text-sm"
+        >
+          <option value="">Choose a repository</option>
+          {repos.map((item) => (
+            <option key={item.repo} value={item.repo}>
+              {item.name}
+              {item.ready ? "" : " (not ready yet)"}
+            </option>
+          ))}
+        </select>
+        <Button type="submit" disabled={busy || !repo}>
+          Add a note
+        </Button>
+      </div>
+      {chosen && !chosen.ready && chosen.reason && (
+        <p className="text-xs leading-relaxed text-faint">
+          Pitch will say not yet. {chosen.reason}
+        </p>
+      )}
+      {error && <InlineError>{error}</InlineError>}
+    </form>
   );
 }
 
@@ -108,6 +165,9 @@ export default function PitchPage() {
   const { data: tray } = useApi(`notes:${key}`, fetchNotes);
   // Drafts exist on the working desk only. The view-only copy never holds one.
   const { data: mine } = useApi(`posts:${key}`, (signal) => (SHOWCASE ? Promise.resolve(null) : fetchPosts(signal)));
+  const { data: pickable } = useApi(`pickable:${key}`, (signal) =>
+    SHOWCASE ? Promise.resolve(null) : fetchPickable(signal),
+  );
   const meta = agentMeta("pitch");
 
   // What can be posted comes first. Within each group the newest note stays on top.
@@ -210,6 +270,7 @@ export default function PitchPage() {
                   only.
                 </p>
               )}
+              {pickable && <Pick repos={pickable.repos} onChanged={changed} />}
             </div>
 
             {notes.length ? (
@@ -231,7 +292,7 @@ export default function PitchPage() {
             ) : (
               <p className="panel p-8 text-sm leading-relaxed text-muted">
                 No notes yet. The first audit is a baseline, so nothing in it is news. A note appears when
-                something changes after that.
+                something changes after that{SHOWCASE ? "." : ", or when you pick a repository above."}
               </p>
             )}
 
