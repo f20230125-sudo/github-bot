@@ -24,7 +24,7 @@ export function ShowcaseBanner() {
   useEffect(() => {
     if (!SHOWCASE) return;
     loadSnapshot()
-      .then((snapshot) => setTaken(shortDate(snapshot.exported_at)))
+      .then((snapshot) => setTaken(snapshot.exported_at))
       .catch(() => undefined);
     fetchScheduledCheck().then(setCheck);
   }, []);
@@ -44,7 +44,9 @@ export function ShowcaseBanner() {
           .{" "}
         </>
       ) : (
-        taken && `What you see was recorded on ${taken}. `
+        // GitHub didn't say when the last check ran (it rations that question). The snapshot itself
+        // still says when a check last found something to change.
+        taken && `It last found a change ${now !== null ? ago(taken, now) : `on ${shortDate(taken)}`}. `
       )}
       Nothing on this site changes anything.{" "}
       <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={link}>
