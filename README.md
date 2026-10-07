@@ -77,6 +77,10 @@ snapshot. Neither are the runs that wrote them, the tone you chose, or the rules
 Pitch has no access to LinkedIn. It cannot sign in, post, comment, message, or read a feed or a
 profile, and it holds no LinkedIn password or token.
 
+## See what a run did, in Hindsight
+
+A run's page has an **Open in Hindsight** control. On the desk it hands the run to [Hindsight](https://github.com/f20230125-sudo/hindsight) ([live](https://hindsight-sand.vercel.app)), an observer for agents, which draws it on a timeline (in a browser, with `postMessage` addressed to Hindsight alone; a file if the new tab is blocked). On the public site it is a link to the same run there, because Hindsight already reads this bot's runs from the snapshot its scheduled check commits.
+
 ## How it stays cheap
 
 Every job climbs this ladder only as far as it needs to:
