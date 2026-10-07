@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Play, Square } from "lucide-react";
+import { ArrowLeft, ExternalLink, Play, Square } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -10,6 +10,8 @@ import { Button, Dot, Notice, StatRow, Tag } from "@/components/ui";
 import { agentMeta } from "@/lib/agents";
 import { fetchRun } from "@/lib/api";
 import { clock, shortDate } from "@/lib/format";
+import { HINDSIGHT_URL, describeSend, sendToHindsight } from "@/lib/hindsight";
+import { SHOWCASE } from "@/lib/showcase";
 import type { DeskEvent, RunSummary } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
@@ -62,6 +64,15 @@ export default function RunPage() {
 
   const run = data?.run;
   const replaying = shown !== null;
+
+  // Hindsight is an observer for agents. On the desk it is handed this run; on the public copy, whose
+  // runs it already reads, it is linked to. Called from the click, so the browser does not block the tab.
+  const [handedOver, setHandedOver] = useState<string | null>(null);
+  const openInHindsight = () => {
+    if (!data) return;
+    const envelope = { format: "hindsight/run", version: 1, app: "agent-desk", data: { run: data.run, events: data.events } };
+    void sendToHindsight(envelope, `hindsight-agent-desk-${data.run.run_id}.json`).then((result) => setHandedOver(describeSend(result).message));
+  };
   const visible = replaying ? events.slice(0, shown) : events;
 
   return (
@@ -102,18 +113,41 @@ export default function RunPage() {
                     {replaying ? `Step ${shown} of ${total}` : `${total} steps, including every request and call.`}
                   </p>
                 </div>
-                {replaying ? (
-                  <Button onClick={() => setShown(null)}>
-                    <Square size={13} aria-hidden />
-                    Show everything
-                  </Button>
-                ) : (
-                  <Button onClick={() => setShown(0)} disabled={total === 0}>
-                    <Play size={14} aria-hidden />
-                    Replay
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  {SHOWCASE ? (
+                    <a
+                      href={`${HINDSIGHT_URL}/runs/${encodeURIComponent(`github-bot:${run.run_id}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-line-strong px-4 py-2 text-sm font-medium transition hover:bg-surface-2"
+                    >
+                      <ExternalLink size={13} aria-hidden />
+                      Open in Hindsight
+                    </a>
+                  ) : (
+                    <Button onClick={openInHindsight}>
+                      <ExternalLink size={13} aria-hidden />
+                      Open in Hindsight
+                    </Button>
+                  )}
+                  {replaying ? (
+                    <Button onClick={() => setShown(null)}>
+                      <Square size={13} aria-hidden />
+                      Show everything
+                    </Button>
+                  ) : (
+                    <Button onClick={() => setShown(0)} disabled={total === 0}>
+                      <Play size={14} aria-hidden />
+                      Replay
+                    </Button>
+                  )}
+                </div>
               </header>
+              {handedOver && (
+                <p role="status" className="border-b border-line px-5 py-2.5 text-xs text-muted">
+                  {handedOver}
+                </p>
+              )}
               <Trace events={visible} start={run.started_at} />
             </section>
 
